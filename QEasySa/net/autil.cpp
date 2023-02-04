@@ -14,8 +14,7 @@
 #include "../util.hpp"
 
 Autil::Autil()
-	: g_net_readbuf(q_check_ptr(new char[NETBUFSIZ]()))
-	, SliceCount(0)
+	:SliceCount(0)
 {
 }
 
@@ -29,11 +28,32 @@ Autil::~Autil()
 //
 void Autil::util_Init(void)
 {
-	size_t i;
+	MesgSlice.reset(q_check_ptr(new char[sizeof(char*) * SLICE_MAX][SLICE_SIZE]()));
+	util_Release();
+	util_DiscardMessage();
+}
 
-	for (i = 0u; i < SLICE_MAX; i++) {
-		ZeroMemory(MesgSlice[i], SLICE_SIZE);
+void Autil::util_Release(void)
+{
+	int i;
+
+	try
+	{
+		for (i = 0; i < (sizeof(char*) * SLICE_MAX); ++i) {
+			ZeroMemory(MesgSlice[i], SLICE_SIZE);
+		}
 	}
+	catch (...)
+	{
+		// do nothing
+	}
+}
+
+// -------------------------------------------------------------------
+// Discard a message from MesgSlice.
+//
+void Autil::util_DiscardMessage(void)
+{
 	SliceCount = 0;
 }
 
@@ -69,21 +89,28 @@ void Autil::util_SplitMessage(char* source, size_t buflen, const char* separator
 		char* ptr;
 		char* head = source;
 
-		while ((ptr = (char*)util.safe_strstr(head, buflen, separator, separatorlen)) && (SliceCount <= SLICE_MAX))
+		try
 		{
-			ptr[0] = '\0';
-			size_t slice_len = min(buflen, (size_t)(ptr - head));
-			if (slice_len < SLICE_SIZE)
-			{ // discard slices too large
-				strncpy_s(MesgSlice[SliceCount], SLICE_SIZE, head, slice_len);
-				SliceCount++;
+			while ((ptr = (char*)util.safe_strstr(head, buflen, separator, separatorlen)) && (SliceCount <= SLICE_MAX))
+			{
+				ptr[0] = '\0';
+				size_t slice_len = min(buflen, (size_t)(ptr - head));
+				if (slice_len < SLICE_SIZE)
+				{ // discard slices too large
+					strncpy_s(MesgSlice[SliceCount], SLICE_SIZE, head, slice_len);
+					SliceCount++;
+				}
+				head = ptr + separatorlen;
+				buflen -= slice_len + separatorlen;
 			}
-			head = ptr + separatorlen;
-			buflen -= slice_len + separatorlen;
-		}
 
-		size_t tail_len = min(buflen, (size_t)strnlen_s(head, buflen));
-		strncpy_s(source, buflen, head, tail_len); // remove splited slices
+			size_t tail_len = min(buflen, (size_t)strnlen_s(head, buflen));
+			strncpy_s(source, buflen, head, tail_len); // remove splited slices
+		}
+		catch (...)
+		{
+			// do nothing
+		}
 	}
 }
 
@@ -103,7 +130,9 @@ void Autil::util_EncodeMessage(char* dst, size_t dstlen, char* src, size_t srcle
 	int rn = distribution(generator);
 	int t1, t2;
 	QScopedArrayPointer <char> t3(q_check_ptr(new char[MAX_LBUFFER]()));
+	if (t3.isNull()) return;
 	QScopedArrayPointer <char> tz(q_check_ptr(new char[MAX_LBUFFER]()));
+	if (tz.isNull()) return;
 
 #ifdef _BACK_VERSION
 	util_swapint(&t1, &rn, "3421"); // encode seed
@@ -115,8 +144,15 @@ void Autil::util_EncodeMessage(char* dst, size_t dstlen, char* src, size_t srcle
 	util_256to64(tz.get(), MAX_LBUFFER, (char*)&t2, sizeof(int), DEFAULTTABLE, DEFAULTTABLESIZE);
 
 	util_shlstring(t3.get(), MAX_LBUFFER, src, srclen, rn);
-	//  printf("random number=%d\n", rn);
-	strncat_s(tz.get(), MAX_LBUFFER, t3.get(), MAX_LBUFFER);
+	try
+	{
+		//  printf("random number=%d\n", rn);
+		strncat_s(tz.get(), MAX_LBUFFER, t3.get(), MAX_LBUFFER);
+	}
+	catch (...)
+	{
+		return;
+	}
 	util_xorstring(dst, dstlen, tz.get(), MAX_LBUFFER);
 }
 
@@ -127,7 +163,6 @@ void Autil::util_EncodeMessage(char* dst, size_t dstlen, char* src, size_t srcle
 // ret: (none)
 void Autil::util_DecodeMessage(char* dst, size_t dstlen, const char* src, size_t srclen)
 {
-	util_Init();
 	if (!dst || !src || dstlen == 0 || srclen == 0) {
 		return;
 	}
@@ -137,19 +172,37 @@ void Autil::util_DecodeMessage(char* dst, size_t dstlen, const char* src, size_t
 	int rn;
 	int t2;
 	QScopedArrayPointer <char> t3(q_check_ptr(new char[MAX_LBUFFER]())); // This buffer is enough for an integer.
+	if (t3.isNull()) return;
 	QScopedArrayPointer <char> t4(q_check_ptr(new char[MAX_STINYBUFF]()));
+	if (t4.isNull()) return;
 	QScopedArrayPointer <char> tz(q_check_ptr(new char[MAX_LBUFFER]()));
-
-	if (src[srclen - 1] == '\n')
+	if (tz.isNull()) return;
+	try
 	{
-		srclen--;
+
+		if (src[srclen - 1] == '\n')
+		{
+			srclen--;
+		}
+	}
+	catch (...)
+	{
+		return;
 	}
 	util_xorstring(tz.get(), MAX_LBUFFER, src, srclen);
 
 	rn = INTCODESIZE;
 
-	strncpy_s(t4.get(), MAX_STINYBUFF, tz.get(), INTCODESIZE);
-	t4[INTCODESIZE] = '\0';
+	try
+	{
+		strncpy_s(t4.get(), MAX_STINYBUFF, tz.get(), INTCODESIZE);
+		t4[INTCODESIZE] = '\0';
+	}
+	catch (...)
+	{
+		return;
+	}
+
 	util_64to256(t3.get(), MAX_LBUFFER, t4.get(), MAX_STINYBUFF, DEFAULTTABLE, DEFAULTTABLESIZE);
 	const int* t1 = reinterpret_cast<int*>(t3.get());
 
@@ -177,29 +230,29 @@ int Autil::util_GetFunctionFromSlice(int* func, int* fieldcount)
 
 	Util util;
 	QScopedArrayPointer<char> t1(q_check_ptr(new char[MAX_SMALLBUFF]));
+	if (t1.isNull()) return 0;
 	int i;
 
-	strncpy_s(t1.get(), MAX_SMALLBUFF, MesgSlice[1], sizeof(MesgSlice[1]));
-	// Robin adjust
-	*func = util.safe_atoi(t1.get()) - 23;
-	for (i = 0; i < SLICE_MAX; i++)
+	try
 	{
-		if (strncmp(MesgSlice[i], DEFAULTFUNCEND, 1u) == 0)
+		strncpy_s(t1.get(), MAX_SMALLBUFF, MesgSlice[1], sizeof(MesgSlice[1]));
+		// Robin adjust
+		*func = util.safe_atoi(t1.get()) - 23;
+		for (i = 0; i < SLICE_MAX; i++)
 		{
-			*fieldcount = i - 2; // - "&" - "#" - "func" 3 fields
-			return 1;
+			if (strncmp(MesgSlice[i], DEFAULTFUNCEND, 1u) == 0)
+			{
+				*fieldcount = i - 2; // - "&" - "#" - "func" 3 fields
+				return 1;
+			}
 		}
+	}
+	catch (...)
+	{
+		return 0;
 	}
 
 	return 0; // failed: message not complete
-}
-
-// -------------------------------------------------------------------
-// Discard a message from MesgSlice.
-//
-void Autil::util_DiscardMessage(void)
-{
-	SliceCount = 0;
 }
 
 // -------------------------------------------------------------------
@@ -212,13 +265,27 @@ void Autil::util_SendMesg(int fd, int func, char* buffer, size_t buflen)
 		return;
 
 	QScopedArrayPointer<char> t1(q_check_ptr(new char[MAX_SMALLBUFF]));
+	if (t1.isNull()) return;
 	QScopedArrayPointer<char> t2(q_check_ptr(new char[MAX_SMALLBUFF]));
-	_snprintf_s(t1.get(), MAX_SMALLBUFF, _TRUNCATE, "&;%d%s;#;", func + 13, buffer);
+	if (t2.isNull()) return;
+	try
+	{
+		_snprintf_s(t1.get(), MAX_SMALLBUFF, _TRUNCATE, "&;%d%s;#;", func + 13, buffer);
+	}
+	catch (...)
+	{
+	}
 	util_EncodeMessage(t2.get(), MAX_SMALLBUFF, t1.get(), MAX_SMALLBUFF);
-	size_t nSize = strnlen_s(t2.get(), MAX_SMALLBUFF);
-	t2[nSize] = '\n';
-	nSize += 1;
-	int ret = send((SOCKET)fd, t2.get(), nSize, 0);
+	try
+	{
+		size_t nSize = strnlen_s(t2.get(), MAX_SMALLBUFF);
+		t2[nSize] = '\n';
+		nSize += 1;
+		int ret = send((SOCKET)fd, t2.get(), nSize, 0);
+	}
+	catch (...)
+	{
+	}
 }
 
 // -------------------------------------------------------------------
@@ -237,20 +304,27 @@ int Autil::util_256to64(char* dst, size_t dstlen, const char* src, size_t srclen
 		return 0;
 	dw = 0;
 	dwcounter = 0;
-	for (i = 0; i < srclen; i++)
+	try
 	{
-		dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
-		dst[dwcounter++] = table[dw & 0x3f];
-		dw = (dw >> 6);
-		if (i % 3 == 2)
+		for (i = 0; i < srclen; i++)
 		{
+			dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
 			dst[dwcounter++] = table[dw & 0x3f];
-			dw = 0;
+			dw = (dw >> 6);
+			if (i % 3 == 2)
+			{
+				dst[dwcounter++] = table[dw & 0x3f];
+				dw = 0;
+			}
 		}
+		if (dw)
+			dst[dwcounter++] = table[dw];
+		dst[dwcounter] = '\0';
 	}
-	if (dw)
-		dst[dwcounter++] = table[dw];
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
 	return dwcounter;
 }
 
@@ -271,33 +345,41 @@ int Autil::util_64to256(char* dst, size_t dstlen, const char* src, size_t srclen
 	if (!dst || !src || !table)
 		return 0;
 	char c;
-	for (i = 0; i < strnlen_s(src, srclen); i++)
+	try
 	{
-		c = src[i];
-		for (j = 0; j < strnlen_s(table, tablelen); j++)
+		for (i = 0; i < strnlen_s(src, srclen); i++)
 		{
-			if (table[j] == c)
+			c = src[i];
+			for (j = 0; j < strnlen_s(table, tablelen); j++)
 			{
-				ptr = (char*)table + j;
-				break;
+				if (table[j] == c)
+				{
+					ptr = (char*)table + j;
+					break;
+				}
+			}
+			if (!ptr)
+				return 0;
+			if (i % 4)
+			{
+				dw = ((unsigned int)(ptr - table) & 0x3f) << ((4 - (i % 4)) << 1) | dw;
+				dst[dwcounter++] = dw & 0xff;
+				dw = dw >> 8;
+			}
+			else
+			{
+				dw = (unsigned int)(ptr - table) & 0x3f;
 			}
 		}
-		if (!ptr)
-			return 0;
-		if (i % 4)
-		{
-			dw = ((unsigned int)(ptr - table) & 0x3f) << ((4 - (i % 4)) << 1) | dw;
+		if (dw)
 			dst[dwcounter++] = dw & 0xff;
-			dw = dw >> 8;
-		}
-		else
-		{
-			dw = (unsigned int)(ptr - table) & 0x3f;
-		}
+		dst[dwcounter] = '\0';
 	}
-	if (dw)
-		dst[dwcounter++] = dw & 0xff;
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
+
 	return dwcounter;
 }
 
@@ -319,26 +401,33 @@ int Autil::util_256to64_shr(char* dst, size_t dstlen, const char* src, size_t sr
 	dw = 0;
 	dwcounter = 0;
 	j = 0;
-	for (i = 0; i < srclen; i++)
+	try
 	{
-		dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
-		dst[dwcounter++] = table[((dw & 0x3f) + key[j]) % 64]; // check!
-		j++;
-		if (!key[j])
-			j = 0;
-		dw = (dw >> 6);
-		if (i % 3 == 2)
+		for (i = 0; i < srclen; i++)
 		{
+			dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
 			dst[dwcounter++] = table[((dw & 0x3f) + key[j]) % 64]; // check!
 			j++;
 			if (!key[j])
 				j = 0;
-			dw = 0;
+			dw = (dw >> 6);
+			if (i % 3 == 2)
+			{
+				dst[dwcounter++] = table[((dw & 0x3f) + key[j]) % 64]; // check!
+				j++;
+				if (!key[j])
+					j = 0;
+				dw = 0;
+			}
 		}
+		if (dw)
+			dst[dwcounter++] = table[(dw + key[j]) % 64]; // check!
+		dst[dwcounter] = '\0';
 	}
-	if (dw)
-		dst[dwcounter++] = table[(dw + key[j]) % 64]; // check!
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
 	return dwcounter;
 }
 
@@ -365,43 +454,51 @@ int Autil::util_shl_64to256(char* dst, size_t dstlen, const char* src, size_t sr
 	if (!dst || !src || !table)
 		return 0;
 	char c;
-	for (i = 0; i < strnlen_s(src, keylen); i++)
+	try
 	{
-		c = src[i];
-		for (k = 0; k < strnlen_s(table, tablelen); k++)
+		for (i = 0; i < strnlen_s(src, keylen); i++)
 		{
-			if (table[k] == c)
+			c = src[i];
+			for (k = 0; k < strnlen_s(table, tablelen); k++)
 			{
-				ptr = (char*)table + k;
-				break;
+				if (table[k] == c)
+				{
+					ptr = (char*)table + k;
+					break;
+				}
+			}
+			if (!ptr)
+				return 0;
+			if (i % 4)
+			{
+				// check!
+				dw = ((((unsigned int)(ptr - table) & 0x3f) + 64 - key[j]) % 64)
+					<< ((4 - (i % 4)) << 1) |
+					dw;
+				j++;
+				if (!key[j])
+					j = 0;
+				dst[dwcounter++] = dw & 0xff;
+				dw = dw >> 8;
+			}
+			else
+			{
+				// check!
+				dw = (((unsigned int)(ptr - table) & 0x3f) + 64 - key[j]) % 64;
+				j++;
+				if (!key[j])
+					j = 0;
 			}
 		}
-		if (!ptr)
-			return 0;
-		if (i % 4)
-		{
-			// check!
-			dw = ((((unsigned int)(ptr - table) & 0x3f) + 64 - key[j]) % 64)
-				<< ((4 - (i % 4)) << 1) |
-				dw;
-			j++;
-			if (!key[j])
-				j = 0;
+		if (dw)
 			dst[dwcounter++] = dw & 0xff;
-			dw = dw >> 8;
-		}
-		else
-		{
-			// check!
-			dw = (((unsigned int)(ptr - table) & 0x3f) + 64 - key[j]) % 64;
-			j++;
-			if (!key[j])
-				j = 0;
-		}
+		dst[dwcounter] = '\0';
+
 	}
-	if (dw)
-		dst[dwcounter++] = dw & 0xff;
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
 	return dwcounter;
 }
 
@@ -423,26 +520,33 @@ int Autil::util_256to64_shl(char* dst, size_t dstlen, const char* src, size_t sr
 	dw = 0;
 	dwcounter = 0;
 	j = 0;
-	for (i = 0; i < srclen; i++)
+	try
 	{
-		dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
-		dst[dwcounter++] = table[((dw & 0x3f) + 64 - key[j]) % 64]; // check!
-		j++;
-		if (!key[j])
-			j = 0;
-		dw = (dw >> 6);
-		if (i % 3 == 2)
+		for (i = 0; i < srclen; i++)
 		{
+			dw = (((unsigned int)src[i] & 0xff) << ((i % 3) << 1)) | dw;
 			dst[dwcounter++] = table[((dw & 0x3f) + 64 - key[j]) % 64]; // check!
 			j++;
 			if (!key[j])
 				j = 0;
-			dw = 0;
+			dw = (dw >> 6);
+			if (i % 3 == 2)
+			{
+				dst[dwcounter++] = table[((dw & 0x3f) + 64 - key[j]) % 64]; // check!
+				j++;
+				if (!key[j])
+					j = 0;
+				dw = 0;
+			}
 		}
+		if (dw)
+			dst[dwcounter++] = table[(dw + 64 - key[j]) % 64]; // check!
+		dst[dwcounter] = '\0';
 	}
-	if (dw)
-		dst[dwcounter++] = table[(dw + 64 - key[j]) % 64]; // check!
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
 	return dwcounter;
 }
 
@@ -467,43 +571,50 @@ int Autil::util_shr_64to256(char* dst, size_t dstlen, const char* src, size_t sr
 	if (!dst || !src || !table)
 		return 0;
 	char c;
-	for (i = 0; i < strnlen_s(src, srclen); i++)
+	try
 	{
-		c = src[i];
-		for (k = 0; k < strnlen_s(table, tablelen); k++)
+		for (i = 0; i < strnlen_s(src, srclen); i++)
 		{
-			if (table[k] == c)
+			c = src[i];
+			for (k = 0; k < strnlen_s(table, tablelen); k++)
 			{
-				ptr = (char*)table + k;
-				break;
+				if (table[k] == c)
+				{
+					ptr = (char*)table + k;
+					break;
+				}
+			}
+			if (!ptr)
+				return 0;
+			if (i % 4)
+			{
+				// check!
+				dw = ((((unsigned int)(ptr - table) & 0x3f) + key[j]) % 64)
+					<< ((4 - (i % 4)) << 1) |
+					dw;
+				j++;
+				if (!key[j])
+					j = 0;
+				dst[dwcounter++] = dw & 0xff;
+				dw = dw >> 8;
+			}
+			else
+			{
+				// check!
+				dw = (((unsigned int)(ptr - table) & 0x3f) + key[j]) % 64;
+				j++;
+				if (!key[j])
+					j = 0;
 			}
 		}
-		if (!ptr)
-			return 0;
-		if (i % 4)
-		{
-			// check!
-			dw = ((((unsigned int)(ptr - table) & 0x3f) + key[j]) % 64)
-				<< ((4 - (i % 4)) << 1) |
-				dw;
-			j++;
-			if (!key[j])
-				j = 0;
+		if (dw)
 			dst[dwcounter++] = dw & 0xff;
-			dw = dw >> 8;
-		}
-		else
-		{
-			// check!
-			dw = (((unsigned int)(ptr - table) & 0x3f) + key[j]) % 64;
-			j++;
-			if (!key[j])
-				j = 0;
-		}
+		dst[dwcounter] = '\0';
 	}
-	if (dw)
-		dst[dwcounter++] = dw & 0xff;
-	dst[dwcounter] = '\0';
+	catch (...)
+	{
+		return 0;
+	}
 	return dwcounter;
 }
 
@@ -524,9 +635,16 @@ void Autil::util_swapint(int* dst, size_t dstlen, int* src, size_t srclen, const
 	char* ptr = reinterpret_cast<char*>(src);
 	char* qtr = reinterpret_cast<char*>(dst);
 	constexpr size_t size = sizeof(int);
-	for (size_t i = 0u; i < size; i++)
+	try
 	{
-		qtr[rule[i] - '1'] = ptr[i];
+		for (size_t i = 0u; i < size; i++)
+		{
+			qtr[rule[i] - '1'] = ptr[i];
+		}
+	}
+	catch (...)
+	{
+		return;
 	}
 }
 
@@ -547,9 +665,13 @@ void Autil::util_xorstring(char* dst, size_t dstlen, const char* src, size_t src
 	if (dstlen < strnlen_s(src, srclen))
 		return;
 
-	for (i = 0; i < strnlen_s(src, srclen); i++)
-		dst[i] = src[i] ^ 255;
-	dst[i] = '\0';
+	try
+	{
+		for (i = 0; i < strnlen_s(src, srclen); i++)
+			dst[i] = src[i] ^ 255;
+		dst[i] = '\0';
+	}
+	catch (...) {}
 }
 
 // -------------------------------------------------------------------
@@ -561,11 +683,17 @@ void Autil::util_shrstring(char* dst, size_t dstlen, const char* src, size_t src
 	if (!dst || !src || (len < 1u))
 		return;
 
-	offs = len - (offs % len);
-	const char* ptr = src + offs;
-	strncpy_s(dst, dstlen, ptr, srclen - offs);
-	strncat_s(dst, MAX_SMALLBUFF, src, offs);
-	dst[len] = '\0';
+	try
+	{
+		offs = len - (offs % len);
+		const char* ptr = src + offs;
+		strncpy_s(dst, dstlen, ptr, srclen - offs);
+		strncat_s(dst, MAX_SMALLBUFF, src, offs);
+		dst[len] = '\0';
+	}
+	catch (...)
+	{
+	}
 }
 
 // -------------------------------------------------------------------
@@ -577,11 +705,17 @@ void Autil::util_shlstring(char* dst, size_t dstlen, const char* src, size_t src
 	if (!dst || !src || (len < 1u))
 		return;
 
-	offs = offs % len;
-	const char* ptr = src + offs;
-	strncpy_s(dst, dstlen, ptr, srclen - offs);
-	strncat_s(dst, MAX_LBUFFER, src, offs);
-	dst[len] = '\0';
+	try
+	{
+		offs = offs % len;
+		const char* ptr = src + offs;
+		strncpy_s(dst, dstlen, ptr, srclen - offs);
+		strncat_s(dst, MAX_LBUFFER, src, offs);
+		dst[len] = '\0';
+	}
+	catch (...)
+	{
+	}
 }
 
 // -------------------------------------------------------------------
@@ -598,10 +732,18 @@ int Autil::util_deint(int sliceno, int* value)
 	int* t1, t2;
 	//char t3[MAX_STINYBUFF]; // This buffer is enough for an integer.
 	QScopedArrayPointer <char> t3(new char[MAX_STINYBUFF]());
+	if (t3.isNull()) return 0;
 
 	util_shl_64to256(t3.get(), MAX_STINYBUFF, MesgSlice[sliceno], sizeof(MesgSlice[sliceno]), DEFAULTTABLE, DEFAULTTABLESIZE, g_KeyManager.GetKey().c_str(), g_KeyManager.size());
-	t1 = (int*)t3.get();
-	t2 = *t1 ^ UINT32_MAX;
+	try
+	{
+		t1 = (int*)t3.get();
+		t2 = *t1 ^ UINT32_MAX;
+	}
+	catch (...)
+	{
+		return 0;
+	}
 #ifdef _BACK_VERSION
 	util_swapint(value, &t2, "3421");
 #else
@@ -624,16 +766,31 @@ int Autil::util_mkint(char* buffer, size_t buflen, int value)
 	int t1, t2;
 	//char t3[MAX_STINYBUFF]; // This buffer is enough for an integer.
 	QScopedArrayPointer <char> t3(new char[MAX_STINYBUFF]());
+	if (t3.isNull()) return 0;
 
 #ifdef _BACK_VERSION
 	util_swapint(&t1, &value, "4312");
 #else
 	util_swapint(&t1, sizeof(int), &value, sizeof(int), "3142", 4u);
 #endif
-	t2 = t1 ^ UINT32_MAX;
+	try
+	{
+		t2 = t1 ^ UINT32_MAX;
+	}
+	catch (...)
+	{
+		return 0;
+	}
 	util_256to64_shr(t3.get(), MAX_STINYBUFF, (char*)&t2, sizeof(int), DEFAULTTABLE, DEFAULTTABLESIZE, g_KeyManager.GetKey().c_str(), g_KeyManager.size());
-	strncat_s(buffer, buflen, SEPARATOR, 1); // It's important to append a SEPARATOR between fields
-	strncat_s(buffer, buflen, t3.get(), MAX_STINYBUFF);
+	try
+	{
+		strncat_s(buffer, buflen, SEPARATOR, 1); // It's important to append a SEPARATOR between fields
+		strncat_s(buffer, buflen, t3.get(), MAX_STINYBUFF);
+	}
+	catch (...)
+	{
+		return 0;
+	}
 
 	return value;
 }
@@ -651,7 +808,16 @@ int Autil::util_destring(int sliceno, char* value, size_t valuelen)
 	STATICINS(KeyManager);
 	util_shr_64to256(value, valuelen, MesgSlice[sliceno], sizeof(MesgSlice[sliceno]), DEFAULTTABLE, DEFAULTTABLESIZE, g_KeyManager.GetKey().c_str(), g_KeyManager.size());
 
-	return strnlen_s(value, valuelen);
+	try
+	{
+		return strnlen_s(value, valuelen);
+	}
+	catch (...)
+	{
+		return 0;
+	}
+
+	return 0;
 }
 
 // -------------------------------------------------------------------
@@ -666,21 +832,32 @@ int Autil::util_mkstring(char* buffer, size_t buflen, const char* value, size_t 
 
 	STATICINS(KeyManager);
 	QScopedArrayPointer <char> t1(new char[MAX_LBUFFER]());
-	util_256to64_shl(t1.get(), MAX_LBUFFER, value, strnlen_s(value, valuelen), DEFAULTTABLE, DEFAULTTABLESIZE, g_KeyManager.GetKey().c_str(), g_KeyManager.size());
-	strncat_s(buffer, MAX_SMALLBUFF, SEPARATOR, 1u); // It's important to append a SEPARATOR between fields
-	strncat_s(buffer, MAX_SMALLBUFF, t1.get(), MAX_LBUFFER);
+	if (t1.isNull()) return 0;
+	size_t size = 0;
 
-	return strnlen_s(value, valuelen);
-}
-
-void Autil::util_Release(void)
-{
-	int i;
-
-	for (i = 0; i < SLICE_MAX; i++) {
-		memset(MesgSlice[i], 0, SLICE_SIZE);
+	try
+	{
+		size = strnlen_s(value, valuelen);
 	}
+	catch (...)
+	{
+		return 0;
+	}
+
+	util_256to64_shl(t1.get(), MAX_LBUFFER, value, size, DEFAULTTABLE, DEFAULTTABLESIZE, g_KeyManager.GetKey().c_str(), g_KeyManager.size());
+	try
+	{
+		strncat_s(buffer, MAX_SMALLBUFF, SEPARATOR, 1u); // It's important to append a SEPARATOR between fields
+		strncat_s(buffer, MAX_SMALLBUFF, t1.get(), MAX_LBUFFER);
+		return strnlen_s(value, valuelen);
+	}
+	catch (...)
+	{
+		return 0;
+	}
+	return 0;
 }
+
 
 //int Autil::strcmptail(char* s1, char* s2)
 //{
@@ -699,73 +876,96 @@ void Autil::util_Release(void)
 //	}
 //}
 
-#define IS_2BYTEWORD(_a_) ((char)(0x80) <= (_a_) && (_a_) <= (char)(0xFF))
-char* ScanOneByte(char* src, char delim)
+//#define IS_2BYTEWORD(_a_) ((char)(0x80) <= (_a_) && (_a_) <= (char)(0xFF))
+//char* ScanOneByte(char* src, char delim)
+//{
+//	if (!src)
+//		return NULL;
+//	for (; src[0] != '\0'; src++)
+//	{
+//		if (IS_2BYTEWORD(src[0]))
+//		{
+//			if (src[1] != 0)
+//			{
+//				src++;
+//			}
+//			continue;
+//		}
+//		if (src[0] == delim)
+//		{
+//			return src;
+//		}
+//	}
+//	return NULL;
+//}
+
+//void Autil::util_InitReadBuf(char* dst, size_t dstlen, const char* src, size_t srclen)
+//{
+//	//if (g_net_readbuf.isNull())
+//	//	g_net_readbuf.reset(q_check_ptr(new char[NETBUFSIZ]()));
+//	//else
+//	//	ZeroMemory(g_net_readbuf.get(), NETBUFSIZ);
+//
+//	//memcpy_s(g_net_readbuf.get(), NETBUFSIZ, encoded, buflen);
+//	//g_net_readbuflen = buflen;
+//}
+
+int Autil::util_getLineFromReadBuf(char* dst, size_t dstlen, char* src, ULONG& srclen, size_t maxlen)
 {
-	if (!src)
-		return NULL;
-	for (; src[0] != '\0'; src++)
-	{
-		if (IS_2BYTEWORD(src[0]))
-		{
-			if (src[1] != 0)
-			{
-				src++;
-			}
-			continue;
-		}
-		if (src[0] == delim)
-		{
-			return src;
-		}
-	}
-	return NULL;
-}
-
-
-int Autil::shiftReadBuf(int size)
-{
-	int i;
-
-	if (size > g_net_readbuflen)
+	if (!dst || !src)
 		return -1;
-	for (i = size; i < g_net_readbuflen; i++)
-	{
-		g_net_readbuf[i - size] = g_net_readbuf[i];
-	}
-	g_net_readbuflen -= size;
-	return 0;
-}
 
-int Autil::getLineFromReadBuf(char* output, size_t outputlen, int maxlen)
-{
-	if (output)
+	auto shiftReadBuf = [](char* dst, ULONG& dstlen, int size)->int
 	{
-		int i;
+		size_t i;
 
-		int j;
-		for (i = 0; i < g_net_readbuflen && i < (maxlen - 1); i++)
+		if ((size_t)size > dstlen)
+			return -1;
+		for (i = size; i < dstlen; i++)
 		{
-			if (g_net_readbuf[i] == '\n')
+			try
 			{
-				memcpy_s(output, outputlen, g_net_readbuf.get(), i);
-				output[i] = '\0';
+				dst[i - size] = dst[i];
+			}
+			catch (...)
+			{
+				return -1;
+			}
+		}
+		dstlen -= size;
+		return 0;
+	};
+
+	size_t i, j;
+	for (i = 0; i < srclen && i < (maxlen - 1); i++)
+	{
+		try
+		{
+			if (src[i] == '\n')
+			{
+				memcpy_s(dst, dstlen, src, i);
+				dst[i] = '\0';
 				for (j = i + 1; j > 0; j--)
 				{
-					if (output[j] == '\r')
+					if (dst[j] == '\r')
 					{
-						output[j] = '\0';
+						dst[j] = '\0';
 						break;
 					}
 				}
 
-				shiftReadBuf(i + 1);
-				g_net_readbuf[g_net_readbuflen] = '\0';
+				shiftReadBuf(src, srclen, i + 1);
+				src[srclen] = '\0';
 
 				return 0;
 			}
 		}
+		catch (...)
+		{
+			return -1;
+		}
 	}
+
 	return -1;
 }
 

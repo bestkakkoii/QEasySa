@@ -17,6 +17,7 @@ protected:
 
 private:
 	QTimer m_timer;
+	QTimer m_battletimer;
 	QTranslator m_translator;
 	QLabel* m_permanent = nullptr;
 	QLabel* m_childstatus = nullptr;
@@ -25,11 +26,14 @@ private:
 	int m_lineEditListIndex = 0;
 	QList<QString> m_lineEditList;
 
+	QFuture<void> autojoin_future;
+
 	const QString m_userFileName = QCoreApplication::applicationDirPath() + "/user.lua";
 	void LoadUserFromLua();
 
 	void UpdateStaticBar(const QString& data);
 	void UpdateBar(const QString& data);
+
 
 private slots:
 	void on_checkBox_EnableFastBattle_stateChanged(int state);
@@ -39,8 +43,11 @@ private slots:
 	void on_checkBox_EnableAutoLogin_stateChanged(int state);
 	void on_checkBox_EnableBattleMagicHeal_stateChanged(int state);
 	void on_checkBox_EnableDebugMode_stateChanged(int state);
+	void on_checkBox_EnableAutoJoin_stateChanged(int state);
+	void on_checkBox_EnableAutoReCombat_stateChanged(int state);
 
 	void on_spinBox_BattleMagicHealValue_valueChanged(int value);
+	void on_spinBox_speed_valueChanged(int value);
 
 	void on_comboBox_userdata_currentIndexChanged(int index);
 	void on_comboBox_userdata_editTextChanged(const QString& text);
@@ -52,6 +59,10 @@ private slots:
 
 	void on_comboBox_userdata_3_currentIndexChanged(int index);
 
+	void on_comboBox_autojoin_currentTextChanged(const QString& text);
+	void on_comboBox_autojoin_editTextChanged(const QString& text);
+	void on_comboBox_autojoin_clicked();
+
 	void on_pushButton_clicked();
 	void on_pushButton_logout_clicked();
 	void on_pushButton_logback_clicked();
@@ -61,5 +72,7 @@ private slots:
 	void on_pushButton_userdatarefresh_clicked();
 
 
-	void on_timer();
+	void OnTimer();
+	void OnBattleTimer();
+	void OnUpdateData();
 };

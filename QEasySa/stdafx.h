@@ -116,10 +116,16 @@ static constexpr int __stdcall percent(const int minimum, const int maximum)
 template<class T, class T2>
 void __stdcall MomoryMove(T dis, T2* src, size_t size)
 {
-	DWORD dwOldProtect = 0;
-	VirtualProtect((void*)dis, size, PAGE_EXECUTE_READWRITE, &dwOldProtect);
-	memcpy((void*)dis, (void*)src, size);
-	VirtualProtect((void*)dis, size, dwOldProtect, &dwOldProtect);
+	try
+	{
+		DWORD dwOldProtect = 0;
+		VirtualProtect((void*)dis, size, PAGE_EXECUTE_READWRITE, &dwOldProtect);
+		memcpy((void*)dis, (void*)src, size);
+		VirtualProtect((void*)dis, size, dwOldProtect, &dwOldProtect);
+	}
+	catch (...)
+	{
+	}
 }
 
 template <class ToType, class FromType>
@@ -207,18 +213,25 @@ static HANDLE __stdcall My_ZwOpenProcess(DWORD dwProcess)
 static HANDLE __stdcall openProcess(DWORD dwProcess)
 {
 	HANDLE hprocess = NULL;
-	hprocess = My_NtOpenProcess(dwProcess);
-	if (hprocess == NULL)
+	try
 	{
-		hprocess = My_ZwOpenProcess(dwProcess);
+		hprocess = My_NtOpenProcess(dwProcess);
 		if (hprocess == NULL)
 		{
-			hprocess = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcess);
+			hprocess = My_ZwOpenProcess(dwProcess);
 			if (hprocess == NULL)
 			{
-				return 0;
+				hprocess = ::OpenProcess(PROCESS_ALL_ACCESS, FALSE, dwProcess);
+				if (hprocess == NULL)
+				{
+					return 0;
+				}
 			}
 		}
+	}
+	catch (...)
+	{
+		return 0;
 	}
 	return hprocess;
 }
@@ -237,10 +250,20 @@ BOOL __stdcall write(T desiredAccess, T2* buffer, size_t dwSize)
 	if (!hProcess) return FALSE;
 	ULONG oldProtect = NULL;
 	EnableDebugPrivilege(hProcess);
-	VirtualProtectEx(hProcess, (LPVOID)desiredAccess, dwSize, PAGE_EXECUTE_READWRITE, &oldProtect);
-	BOOL ret = NT_SUCCESS(NtWriteVirtualMemory(hProcess, reinterpret_cast<PVOID>(desiredAccess), (PVOID)buffer, dwSize, NULL));
-	VirtualProtectEx(hProcess, (LPVOID)desiredAccess, dwSize, oldProtect, &oldProtect);
-	closeHandle(hProcess);
+
+	BOOL ret = NULL;
+	try
+	{
+		VirtualProtectEx(hProcess, (LPVOID)desiredAccess, dwSize, PAGE_EXECUTE_READWRITE, &oldProtect);
+		ret = NT_SUCCESS(NtWriteVirtualMemory(hProcess, reinterpret_cast<PVOID>(desiredAccess), (PVOID)buffer, dwSize, NULL));
+		VirtualProtectEx(hProcess, (LPVOID)desiredAccess, dwSize, oldProtect, &oldProtect);
+		closeHandle(hProcess);
+	}
+	catch (...)
+	{
+		closeHandle(hProcess);
+		return FALSE;
+	}
 	return ret;
 }
 
@@ -276,14 +299,28 @@ static std::wstring ExePath() {
 
 static QString __stdcall toUnicode(const char* str)
 {
-	QTextCodec* codec = QTextCodec::codecForName(LOCAL_LANG);
-	return codec->toUnicode(str);
+	try
+	{
+		QTextCodec* codec = QTextCodec::codecForName(LOCAL_LANG);
+		return codec->toUnicode(str);
+	}
+	catch (...)
+	{
+		return QString();
+	}
 }
 
 static std::string __stdcall fromUnicode(const QString& str)
 {
-	QTextCodec* codec = QTextCodec::codecForName(LOCAL_LANG);
-	return codec->fromUnicode(str).data();
+	try
+	{
+		QTextCodec* codec = QTextCodec::codecForName(LOCAL_LANG);
+		return codec->fromUnicode(str).data();
+	}
+	catch (...)
+	{
+		return std::string();
+	}
 }
 
 
@@ -291,23 +328,37 @@ static std::string __stdcall fromUnicode(const QString& str)
 //根據 QVector<int> 返回最小值索引
 Q_REQUIRED_RESULT inline static int lowestIndex(const QVector<int>& v)
 {
+	try
+	{
 #if _MSVC_LANG > 201703L
-	const int* p = std::ranges::min_element(v);
+		const int* p = std::ranges::min_element(v);
 #else
-	const int* p = std::min_element(v.begin(), v.end());
+		const int* p = std::min_element(v.begin(), v.end());
 #endif
-	return p - v.begin();
+		return p - v.begin();
+}
+	catch (...)
+	{
+		return -1;
+	}
 }
 
 //根據 QVector<int> 返回最小值
 Q_REQUIRED_RESULT inline static int lowest(const QVector<int>& v)
 {
+	try
+	{
 #if _MSVC_LANG > 201703L
-	const int* p = std::ranges::min_element(v);
+		const int* p = std::ranges::min_element(v);
 #else
-	const int* p = std::min_element(v.begin(), v.end());
+		const int* p = std::min_element(v.begin(), v.end());
 #endif
-	return *p;
+		return *p;
+}
+	catch (...)
+	{
+		return -1;
+	}
 }
 
 
@@ -477,7 +528,7 @@ static bool __stdcall GetUniqueId(QString& cpuid)
 	CoUninitialize();
 	cpuid = QString::fromStdWString(result).simplified();
 	return true;
-	}
+}
 
 
 

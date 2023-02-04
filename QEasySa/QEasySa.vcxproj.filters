@@ -47,8 +47,14 @@
     <ClInclude Include="structs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="astar.h">
+      <Filter>net</Filter>
+    </ClInclude>
     <ClInclude Include="util.hpp">
-      <Filter>Source Files</Filter>
+      <Filter>net</Filter>
+    </ClInclude>
+    <ClInclude Include="include\blockallocator\blockallocator.h">
+      <Filter>model</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -67,10 +73,19 @@
     <ClCompile Include="gameservice.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="net\autil.cpp">
-      <Filter>net</Filter>
-    </ClCompile>
     <ClCompile Include="model\listview.cpp">
+      <Filter>model</Filter>
+    </ClCompile>
+    <ClCompile Include="astar.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="net\autil.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="include\blockallocator\blockallocator.cpp">
+      <Filter>model</Filter>
+    </ClCompile>
+    <ClCompile Include="model\combobox.cpp">
       <Filter>model</Filter>
     </ClCompile>
   </ItemGroup>
@@ -85,6 +100,9 @@
       <Filter>Header Files</Filter>
     </QtMoc>
     <QtMoc Include="model\listview.h">
+      <Filter>model</Filter>
+    </QtMoc>
+    <QtMoc Include="model\combobox.h">
       <Filter>model</Filter>
     </QtMoc>
   </ItemGroup>

@@ -27,7 +27,8 @@ public:
 	virtual ~KeyManager() { m_key.clear(); }
 	void SetKey(const std::string& key)
 	{
-		EncryptKey(key);
+		if (!compare(key))
+			EncryptKey(key);
 	}
 	std::string GetKey() const
 	{
@@ -49,6 +50,12 @@ public:
 		return key.length();
 	}
 
+	bool compare(const std::string& key) const
+	{
+		std::string key1 = DecryptKey();
+		return key1 == key;
+	}
+
 
 private:
 	KeyManager() = default;
@@ -57,11 +64,20 @@ private:
 	void EncryptKey(const std::string& key)
 	{
 		std::string encryptedKey = key;
-		for (size_t i = 0; i < key.length(); i++)
+		try
 		{
-			encryptedKey[i] = encryptedKey[i] << 1 ^ encryptedKey[i] >> 7;
-			encryptedKey[i] = encryptedKey[i] ^ (encryptedKey[i] & 0xff) >> 4;
-			encryptedKey[i] = (encryptedKey[i] & 0xff) << 4 | (encryptedKey[i] & 0xff) >> 4;
+			for (size_t i = 0; i < key.length(); i++)
+			{
+
+				encryptedKey[i] = encryptedKey[i] << 1 ^ encryptedKey[i] >> 7;
+				encryptedKey[i] = encryptedKey[i] ^ (encryptedKey[i] & 0xff) >> 4;
+				encryptedKey[i] = (encryptedKey[i] & 0xff) << 4 | (encryptedKey[i] & 0xff) >> 4;
+
+			}
+		}
+		catch (...)
+		{
+			encryptedKey.clear();
 		}
 		//比較
 		if (encryptedKey != m_key)
@@ -73,24 +89,38 @@ private:
 	std::string DecryptKey() const
 	{
 		std::string decryptedKey = m_key;
-		for (size_t i = 0; i < decryptedKey.length(); i++)
+		try
 		{
-			decryptedKey[i] = (decryptedKey[i] & 0xff) << 4 | (decryptedKey[i] & 0xff) >> 4;
-			decryptedKey[i] = decryptedKey[i] ^ (decryptedKey[i] & 0xff) >> 4;
-			decryptedKey[i] = (decryptedKey[i] >> 1) ^ (decryptedKey[i] << 7);
+			for (size_t i = 0; i < decryptedKey.length(); i++)
+			{
+				decryptedKey[i] = (decryptedKey[i] & 0xff) << 4 | (decryptedKey[i] & 0xff) >> 4;
+				decryptedKey[i] = decryptedKey[i] ^ (decryptedKey[i] & 0xff) >> 4;
+				decryptedKey[i] = (decryptedKey[i] >> 1) ^ (decryptedKey[i] << 7);
+			}
+		}
+		catch (...)
+		{
+			decryptedKey.clear();
 		}
 		return decryptedKey;
 	}
 	std::string m_key;
 };
 
-
 class Autil
 {
 	DISABLE_COPY_MOVE(Autil);
 public:
+	struct OutputInfo {
+		int offset;
+		int len;
+	};
+
 	Autil();
 	virtual ~Autil();
+	void util_Init(void);
+	void util_Reset(void);
+	void util_Release(void);
 	void util_SplitMessage(char* source, size_t buflen, const char* separator, size_t separatorlen);
 	int util_GetFunctionFromSlice(int* func, int* fieldcount);
 	void util_SendMesg(int fd, int func, char* buffer, size_t buflen);
@@ -105,21 +135,18 @@ public:
 	int util_mkstring(char* buffer, size_t buflen, const char* value, size_t valuelen);
 
 	//bool getStringFromIndexWithDelim_body(char* src, char* delim, int index, char* buf, int buflen);
-	int getLineFromReadBuf(char* output, size_t outputlen, int maxlen);
+	int util_getLineFromReadBuf(char* dst, size_t dstlen, char* src, ULONG& srclen, size_t maxlen);
 
-public:
-	QScopedArrayPointer<char> g_net_readbuf;
-	int g_net_readbuflen = 0u;
-
+	//void util_InitReadBuf(const char* encoded, size_t buflen);
 private:
-	char MesgSlice[sizeof(char*) * SLICE_MAX][SLICE_SIZE] = {};
+	QScopedArrayPointer<char[SLICE_SIZE]> MesgSlice;
 	int SliceCount;
 
+	//QScopedArrayPointer<char> g_net_readbuf;
+	//size_t g_net_readbuflen = 0u;
+
 private:
-	int shiftReadBuf(int size);
-	void util_Init(void);
 	void util_EncodeMessage(char* dst, size_t dstlen, char* src, size_t srclen);
-	void util_Release(void);
 	//int strcmptail(char* s1, char* s2);
 
 	// -------------------------------------------------------------------

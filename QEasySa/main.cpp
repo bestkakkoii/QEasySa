@@ -26,9 +26,7 @@ extern std::wstring g_GameExeFilePath;
 extern std::shared_ptr<spdlog::logger> g_cont;
 extern MainForm* g_main;
 
-
 extern LRESULT CALLBACK WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam);
-
 
 void CreateConsole()
 {
@@ -59,7 +57,6 @@ void CreateConsole()
 	std::wcerr.clear();
 	std::wcin.clear();
 }
-
 
 void LoggerInit()
 {
@@ -127,24 +124,18 @@ HWND WINAPI GetCurrentWindowHandle()
 	return hwnd;
 }
 
-
-
-QApplication* a = nullptr;
-int Initialize()
+int ExecMainWindow()
 {
 	STATICINS(GameService);
 
 	if (!GetUniqueId(g_GameService.g_cpuid))
 	{
-		CreateConsole();
-		qDebug() << g_GameService.g_cpuid;
 		g_GameService.g_cpuid.clear();
-		system("pause");
+		return 0;
 	}
 
-	do
+	try
 	{
-
 		QMfcApp::pluginInstance(g_hInstance);
 		QWinWidget win((HWND)NULL);
 		win.showCentered();
@@ -152,15 +143,16 @@ int Initialize()
 		char argv[MAX_PATH] = {};
 		GetModuleFileNameA(NULL, argv, MAX_PATH);
 		char* pargv = argv;
-		a = new QApplication(argc, &pargv);
+		QApplication a(argc, &pargv);
 		// 这里创建dll内部的Qt界面例如QWidget
 		g_main = q_check_ptr(new MainForm());
 		g_main->show();
-		a->exec();
-		delete a;
-	} while (false);
-
-	return 0;
+		return a.exec();
+	}
+	catch (...)
+	{
+		return 0;
+	}
 }
 
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpvReserved*/)
@@ -171,9 +163,6 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpvReserved*/)
 	{
 		if (!ownApplication)
 		{
-
-
-
 			ownApplication = TRUE;
 			g_hInstance = hInstance;
 			g_hThread = GetCurrentThread();
@@ -185,16 +174,15 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpvReserved*/)
 			QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 			QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
 			LoggerInit();
-			_beginthread((_beginthread_proc_type)Initialize, NULL, nullptr);
+			QtConcurrent::run(ExecMainWindow);//(_beginthread_proc_type), NULL, nullptr
 		}
 	}
 	if (dwReason == DLL_PROCESS_DETACH && ownApplication)
 	{
 		STATICINS(GameService);
-		//FreeConsole();
 		g_GameService.uninitialize();
-		spdlog::drop_all();
-		delete qApp;
+		//spdlog::drop_all();
+		//delete qApp;
 	}
 
 	return TRUE;

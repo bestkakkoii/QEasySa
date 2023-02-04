@@ -79,6 +79,7 @@
       <OmitFramePointers>true</OmitFramePointers>
       <EnableFiberSafeOptimizations>true</EnableFiberSafeOptimizations>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <ExceptionHandling>Async</ExceptionHandling>
     </ClCompile>
     <Link>
       <AdditionalLibraryDirectories>$(SolutionDir)$(ProjectName)\libs;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
@@ -122,6 +123,9 @@
     </QtMoc>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="astar.h" />
+    <ClInclude Include="include\blockallocator\blockallocator.h" />
+    <QtMoc Include="model\combobox.h" />
     <ClInclude Include="util.hpp" />
     <QtMoc Include="model\listview.h" />
     <ClInclude Include="structs.h" />
@@ -131,9 +135,12 @@
     <ClInclude Include="functiontypes.h" />
     <ClInclude Include="model\qmfcapp.h" />
     <ClInclude Include="net\autil.h" />
+    <ClCompile Include="astar.cpp" />
     <ClCompile Include="gameservice.cpp" />
+    <ClCompile Include="include\blockallocator\blockallocator.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="mainform.cpp" />
+    <ClCompile Include="model\combobox.cpp" />
     <ClCompile Include="model\listview.cpp" />
     <ClCompile Include="model\qmfcapp.cpp" />
     <ClCompile Include="model\qwinwidget.cpp" />

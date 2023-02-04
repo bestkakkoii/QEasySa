@@ -14,6 +14,8 @@ constexpr auto MORNING_TO_NOON = 930;
 constexpr auto NOON_TO_EVENING = 200;
 constexpr auto EVENING_TO_NIGHT = 300;
 
+constexpr auto MAX_DIR = 8;
+
 enum LSTIME_SECTION
 {
 	LS_NOON,
@@ -41,6 +43,15 @@ class Util
 		char escapechar = '\0';
 		char escapedchar = '\0';
 	} EscapeChar;
+
+	//取靠近目標的最佳座標和方向
+	typedef struct qdistance_s
+	{
+		int dir;
+		qreal distance;//Euclidean
+		QPoint p;
+		QPointF pf;
+	}qdistance_t;
 private:
 	EscapeChar escapeChar[4] =
 	{
@@ -48,6 +59,17 @@ private:
 		{ ',', 'c' },
 		{ '|', 'z' },
 		{ '\\', 'y' },
+	};
+
+	const QVector<QPoint> fix_point = {
+		{0, -1},  //北3
+		{1, -1},  //東北4
+		{1, 0},	  //東5
+		{1, 1},	  //東南6
+		{0, 1},	  //南7
+		{-1, 1},  //西南0
+		{-1, 0},  //西1
+		{-1, -1}, //西北2
 	};
 
 public:
@@ -98,94 +120,94 @@ public:
 		return ret * sign;
 	}
 
-	unsigned char* searchDelimPoint(unsigned char* src, unsigned char delim) const
-	{
-		unsigned char* pt = src;
+	//unsigned char* searchDelimPoint(unsigned char* src, unsigned char delim) const
+	//{
+	//	unsigned char* pt = src;
 
-		while (1)
-		{
-			if (*pt == '\0')
-				return (unsigned char*)0;
+	//	while (1)
+	//	{
+	//		if (*pt == '\0')
+	//			return (unsigned char*)0;
 
-			if (*pt < 0x80)
-			{
-				if (*pt == delim)
-				{
-					pt++;
-					return pt;
-				}
-				pt++;
-			}
-			else
-			{
-				pt++;
-				if (*pt == '\0')
-					return (unsigned char*)0;
-				pt++;
-			}
-		}
-	}
+	//		if (*pt < 0x80)
+	//		{
+	//			if (*pt == delim)
+	//			{
+	//				pt++;
+	//				return pt;
+	//			}
+	//			pt++;
+	//		}
+	//		else
+	//		{
+	//			pt++;
+	//			if (*pt == '\0')
+	//				return (unsigned char*)0;
+	//			pt++;
+	//		}
+	//	}
+	//}
 
-	int copyStringUntilDelim(unsigned char* src, char delim, int maxlen, unsigned char* out)
-	{
-		int i;
+	//int copyStringUntilDelim(unsigned char* src, char delim, int maxlen, unsigned char* out)
+	//{
+	//	int i;
 
-		for (i = 0; i < maxlen; i++)
-		{
-			if (src[i] < 0x80)
-			{
-				if (src[i] == delim)
-				{
-					out[i] = '\0';
-					return 0;
-				}
+	//	for (i = 0; i < maxlen; i++)
+	//	{
+	//		if (src[i] < 0x80)
+	//		{
+	//			if (src[i] == delim)
+	//			{
+	//				out[i] = '\0';
+	//				return 0;
+	//			}
 
-				out[i] = src[i];
-				if (out[i] == '\0')
-					return 1;
-			}
-			else
-			{
-				out[i] = src[i];
+	//			out[i] = src[i];
+	//			if (out[i] == '\0')
+	//				return 1;
+	//		}
+	//		else
+	//		{
+	//			out[i] = src[i];
 
-				i++;
-				if (i >= maxlen)
-					break;
+	//			i++;
+	//			if (i >= maxlen)
+	//				break;
 
-				out[i] = src[i];
-				if (out[i] == '\0')
-					return 1;
-			}
-		}
+	//			out[i] = src[i];
+	//			if (out[i] == '\0')
+	//				return 1;
+	//		}
+	//	}
 
-		out[i] = '\0';
+	//	out[i] = '\0';
 
-		return 1;
-	}
+	//	return 1;
+	//}
 
-	int getStringToken(char* src, char delim, int count, int maxlen, char* out)
-	{
-		int c = 1;
-		int i;
-		unsigned char* pt;
+	//int getStringToken(char* src, char delim, int count, int maxlen, char* out)
+	//{
+	//	int c = 1;
+	//	int i;
+	//	unsigned char* pt;
 
-		pt = (unsigned char*)src;
-		for (i = 0; i < count - 1; i++)
-		{
-			if (pt == (unsigned char*)0)
-				break;
+	//	pt = (unsigned char*)src;
+	//	for (i = 0; i < count - 1; i++)
+	//	{
+	//		if (pt == (unsigned char*)0)
+	//			break;
 
-			pt = searchDelimPoint(pt, delim);
-		}
+	//		pt = searchDelimPoint(pt, delim);
+	//	}
 
-		if (pt == (unsigned char*)0)
-		{
-			out[0] = '\0';
-			return 1;
-		}
+	//	if (pt == (unsigned char*)0)
+	//	{
+	//		out[0] = '\0';
+	//		return 1;
+	//	}
 
-		return copyStringUntilDelim(pt, delim, maxlen, (unsigned char*)out);
-	}
+	//	return copyStringUntilDelim(pt, delim, maxlen, (unsigned char*)out);
+	//}
 
 	int getStringToken(const QString& src, const QString& delim, int count, QString& out) const
 	{
@@ -215,17 +237,17 @@ public:
 		return 0;
 	}
 
-	int getIntegerToken(char* src, char delim, int count)
-	{
-		char s[128];
+	//int getIntegerToken(char* src, char delim, int count)
+	//{
+	//	char s[128];
 
-		getStringToken(src, delim, count, sizeof(s) - 1, s);
+	//	getStringToken(src, delim, count, sizeof(s) - 1, s);
 
-		if (s[0] == '\0')
-			return -1;
+	//	if (s[0] == '\0')
+	//		return -1;
 
-		return atoi(s);
-	}
+	//	return atoi(s);
+	//}
 
 	int getIntegerToken(const QString& src, const QString& delim, int count) const
 	{
@@ -237,16 +259,16 @@ public:
 
 	}
 
-	int getInteger62Token(char* src, char delim, int count)
-	{
-		char  s[128];
+	//int getInteger62Token(char* src, char delim, int count)
+	//{
+	//	char  s[128];
 
-		getStringToken(src, delim, count, sizeof(s) - 1, s);
-		if (s[0] == '\0')
-			return -1;
+	//	getStringToken(src, delim, count, sizeof(s) - 1, s);
+	//	if (s[0] == '\0')
+	//		return -1;
 
-		return a62toi(s);
-	}
+	//	return a62toi(s);
+	//}
 
 	int getInteger62Token(const QString& src, const QString& delim, int count) const
 	{
@@ -257,66 +279,73 @@ public:
 		return a62toi(s);
 	}
 
-	char* makeStringFromEscaped(char* src) const
-	{
-		int		srclen = strlen(src);
-		int		searchindex = 0;
-		for (int i = 0; i < srclen; i++) {
-			if (IsDBCSLeadByte(src[i])) {
-				src[searchindex++] = src[i++];
-				src[searchindex++] = src[i];
-			}
-			else {
-				if (src[i] == '\\') {
-					int j;
-					i++;
-					for (j = 0; j < sizeof(escapeChar) / sizeof(escapeChar[0]); j++)
-						if (escapeChar[j].escapedchar == src[i]) {
-							src[searchindex++] = escapeChar[j].escapechar;
-							goto NEXT;
-						}
-					src[searchindex++] = src[i];
-				}
-				else
-					src[searchindex++] = src[i];
-			}
-		NEXT:
-			;
-		}
-		src[searchindex] = '\0';
-		return src;
-	}
+	//char* makeStringFromEscaped(char* src) const
+	//{
+	//	int		srclen = strlen(src);
+	//	int		searchindex = 0;
+	//	for (int i = 0; i < srclen; i++) {
+	//		if (IsDBCSLeadByte(src[i])) {
+	//			src[searchindex++] = src[i++];
+	//			src[searchindex++] = src[i];
+	//		}
+	//		else {
+	//			if (src[i] == '\\') {
+	//				int j;
+	//				i++;
+	//				for (j = 0; j < sizeof(escapeChar) / sizeof(escapeChar[0]); j++)
+	//					if (escapeChar[j].escapedchar == src[i]) {
+	//						src[searchindex++] = escapeChar[j].escapechar;
+	//						goto NEXT;
+	//					}
+	//				src[searchindex++] = src[i];
+	//			}
+	//			else
+	//				src[searchindex++] = src[i];
+	//		}
+	//	NEXT:
+	//		;
+	//	}
+	//	src[searchindex] = '\0';
+	//	return src;
+	//}
 
 	QString makeStringFromEscaped(QString& src) const
 	{
 		int srclen = src.length();
 		int searchIndex = 0;
 		do {
-			for (int i = 0; i < srclen; i++) {
-				if (src.at(i).isHighSurrogate()) {
-					src[searchIndex++] = src.at(i++);
-					src[searchIndex++] = src.at(i);
-				}
-				else {
-					if (src.at(i) == '\\') {
-						int j;
-						i++;
-						for (j = 0; j < sizeof(escapeChar) / sizeof(escapeChar[0]); j++) {
-							if (escapeChar[j].escapedchar == src.at(i).toLatin1()) {
-								src[searchIndex++] = escapeChar[j].escapechar;
-								break;
+			try
+			{
+				for (int i = 0; i < srclen; i++) {
+					if (src.at(i).isHighSurrogate()) {
+						src[searchIndex++] = src.at(i++);
+						src[searchIndex++] = src.at(i);
+					}
+					else {
+						if (src.at(i) == '\\') {
+							int j;
+							i++;
+							for (j = 0; j < sizeof(escapeChar) / sizeof(escapeChar[0]); j++) {
+								if (escapeChar[j].escapedchar == src.at(i).toLatin1()) {
+									src[searchIndex++] = escapeChar[j].escapechar;
+									break;
+								}
+							}
+							if (j == sizeof(escapeChar) / sizeof(escapeChar[0])) {
+								src[searchIndex++] = src.at(i);
 							}
 						}
-						if (j == sizeof(escapeChar) / sizeof(escapeChar[0])) {
+						else {
 							src[searchIndex++] = src.at(i);
 						}
 					}
-					else {
-						src[searchIndex++] = src.at(i);
-					}
 				}
+				src.truncate(searchIndex);
 			}
-			src.truncate(searchIndex);
+			catch (...)
+			{
+				break;
+			}
 		} while (false);
 
 		return src;
@@ -342,15 +371,23 @@ public:
 	int safe_atoi(const QString& str) const
 	{
 		QByteArray ba = str.toLatin1();
-		const char* c_str = ba.data();
-		if (!c_str) {
-			return 0;
-		}
-		char* end;
-		long result = strtol(c_str, &end, 10);
+		long result = 0ul;
+		try
+		{
+			const char* c_str = ba.data();
+			if (!c_str) {
+				return 0;
+			}
+			char* end;
+			result = strtol(c_str, &end, 10);
 
-		if (end == c_str || *end != '\0') {
-			// invalid conversion
+			if (end == c_str || *end != '\0') {
+				// invalid conversion
+				return 0;
+			}
+		}
+		catch (...)
+		{
 			return 0;
 		}
 
@@ -367,12 +404,19 @@ public:
 		if (!str) {
 			return 0;
 		}
+		long result = 0ul;
+		try
+		{
+			char* end;
+			result = strtol(str, &end, 10);
 
-		char* end;
-		long result = strtol(str, &end, 10);
-
-		if (end == str || *end != '\0') {
-			// invalid conversion
+			if (end == str || *end != '\0') {
+				// invalid conversion
+				return 0;
+			}
+		}
+		catch (...)
+		{
 			return 0;
 		}
 
@@ -416,7 +460,7 @@ public:
 		}
 	}
 
-	const char* safe_strstr(const char* src, size_t srclen, const char* target, size_t targetlen) const
+	char* safe_strstr(char* src, size_t srclen, const char* target, size_t targetlen) const
 	{
 		if (srclen < targetlen || !src || !target) {
 			return nullptr;
@@ -447,6 +491,90 @@ public:
 			return LS_NIGHT;
 		else
 			return LS_NOON;
+	}
+
+	int CalcBestFollowPointByDstPoint(int floor, const QPoint& src, const QPoint& dst, QPoint* ret, bool enableExt, int npcdir)
+	{
+
+		QVector<qdistance_t> disV;// <distance, point>
+
+		int d = 0;
+		int invalidcount = 0;
+		for (const QPoint& it : fix_point)
+		{
+			qdistance_t c = {};
+			c.dir = d;
+			c.pf = dst + it;
+			c.p = dst + it;
+			if (src == c.p)//如果已經在目標點
+			{
+				if (ret)
+					*ret = c.p;
+				int n = c.dir + 4;
+				return ((n) <= (7)) ? (n) : ((n)-(MAX_DIR));
+			}
+			//if (_MAP_IsPassable(floor, src, dst + it))//確定是否可走
+			//{
+				//計算src 到 c.p直線距離
+			c.distance = std::sqrt(std::pow((qreal)src.x() - c.pf.x(), 2) + std::pow((qreal)src.y() - c.pf.y(), 2));
+			//}
+			//else//不可走就隨便加個超長距離
+			//{
+				//c.distance = std::numeric_limits<double>::max();
+				//++invalidcount;
+			//}
+			++d;
+			disV.append(c);
+		}
+
+		//if (invalidcount >= MAX_DIR && enableExt && npcdir != -1)//如果周圍8格都不能走搜尋NPC面相方向兩格(中間隔著櫃檯)
+		//{
+		//	for (int i = 0; i < 7; ++i)
+		//	{
+		//		QPoint newP;
+		//		switch (i)//找出NPC面相方向的兩格
+		//		{
+		//		case 0://NPC面相北找往北兩格
+		//			newP = dst + QPoint(0, -2);
+		//			break;
+		//		case 2://NPC面相東
+		//			newP = dst + QPoint(2, 0);
+		//			break;
+		//		case 4://NPC面相南
+		//			newP = dst + QPoint(0, 2);
+		//			break;
+		//		case 6://NPC面相西
+		//			newP = dst + QPoint(-2, 0);
+		//			break;
+		//		}
+		//		if (_MAP_IsPassable(floor, src, newP) || src == newP)//確定是否可走
+		//		{
+		//			//qdistance_t c = {};
+		//			//要面相npc的方向  (當前人物要面向newP的方向)
+		//			if (ret)
+		//				*ret = newP;
+		//			int n = npcdir + 4;
+		//			return ((n) <= (7)) ? (n) : ((n)-(MAX_DIR));
+		//		}
+		//	}
+		//	return -1;
+		//}
+		//else if (invalidcount >= 8)// 如果周圍8格都不能走
+		//{
+		//	return -1;
+		//}
+
+#if _MSVC_LANG > 201703L
+		std::ranges::sort(disV, compareDistance);
+#else
+		std::sort(disV.begin(), disV.end(), [](qdistance_t& a, qdistance_t& b) { return (a.distance < b.distance); });
+#endif
+		if (!disV.size()) return -1;
+		if (ret)
+			*ret = disV.at(0).p;
+		//計算方向
+		int n = disV.at(0).dir + 4;
+		return ((n) <= (7)) ? (n) : ((n)-(MAX_DIR));//返回方向
 	}
 
 private:

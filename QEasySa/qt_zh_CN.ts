@@ -261,6 +261,14 @@
         <source>調試模式</source>
         <translation>调试模式</translation>
     </message>
+    <message>
+        <source>登入後自動遇敵</source>
+        <translation>登入后自动遇敌</translation>
+    </message>
+    <message>
+        <source>自動組隊</source>
+        <translation>自动组队</translation>
+    </message>
 </context>
 <context>
     <name>QObject</name>

@@ -1,8 +1,10 @@
 ﻿#pragma once
 #ifndef STRUCTS_H
 #define STRUCTS_H
+#include <windows.h>
 #include <QtCore/qglobal.h>
 #include <QObject>
+#include <QHash>
 
 constexpr auto MAX_PET = 5;
 constexpr auto MAX_MAGIC = 9;
@@ -47,6 +49,17 @@ constexpr DWORD posset[MAX_ENEMY] = {
 	0x8000ul, 0x10000ul, 0x20000ul, 0x40000ul, 0x80000ul //80   4 //200 10
 };
 
+
+enum CustomMessages
+{
+	WM_SA_WALKPOS = WM_USER + 1,
+	WM_SA_TURNTO,
+	WM_SA_JOINLEAVE,
+	WM_SA_EO,
+	WM_SA_SET_SPEED,
+};
+
+
 enum
 {
 	NO,
@@ -60,6 +73,14 @@ enum
 	SELF,
 	SINGLE,
 	ALL = 20,
+};
+
+enum MAP_FLAG
+{
+	MFLAG_HUMAN = 1,
+	MFLAG_PET = 3,
+	MFLAG_ITEM = 8,
+	MFLAG_NPC = 13,
 };
 
 enum BUTTON_TYPE
@@ -135,12 +156,43 @@ enum {
 	FONT_PAL_NUM
 };
 
-enum CustomMessages
+typedef enum
 {
-	WM_SA_WALKPOS = WM_USER + 1,
-};
+	OBJ_UNKNOWN,
+	OBJ_ROAD,
+	OBJ_UP,
+	OBJ_DOWN,
+	OBJ_JUMP,
+	OBJ_WARP,
+	OBJ_WALL,
+	OBJ_ROCK,
+	OBJ_ROCKEX,
+	OBJ_BOUNDARY,
+	OBJ_EMPTY,
+	OBJ_HUMAN,
+	OBJ_NPC,
+	OBJ_BUILDING,
+	OBJ_ITEM,
+	OBJ_PET,
+	OBJ_GOLD,
+	OBJ_GM,
+} MAP_OBJECT;
 
 #pragma pack(4)
+
+typedef struct qmap_s
+{
+	int floor = 0;
+	int width = 0;
+	int height = 0;
+	int ismaze = 4;
+	QString name = "\0";
+	//QVector<QPoint> boundry = {};
+	//QVector<qmap_point_t> stair = {};
+	//QSet<QPoint> workable = {};
+	QHash<QPoint, MAP_OBJECT> data = {};
+	//QHash<QPoint, qcgmappix_t> info = {};
+} qmap_t;
 
 typedef struct tagWALKARRAY
 {
@@ -688,6 +740,7 @@ typedef struct tagMAP_UNIT
 	int classNo = 0;
 	QString info = "\0";
 	int money = 0;
+	QPoint p = { 0,0 };
 }MAP_UNIT;
 
 #pragma pack()
