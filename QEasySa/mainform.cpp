@@ -833,8 +833,8 @@ void MainForm::OnBattleTimer()
 	QString szlefttime = "\0";
 	if (total_online_time > 0)
 	{
-		//每小時平均;
-		avgExp = ((float)exp.total * 3600.0) / ((float)total_online_time / 1000);
+		//每小時平均 (total_online_time 是毫秒);
+		avgExp = exp.total / (total_online_time / 1000.0f / 60.0f / 60.0f);
 
 		//計算預計升級
 		int leftexp = exp.left;
@@ -843,7 +843,9 @@ void MainForm::OnBattleTimer()
 		{
 			lefttime = leftexp / avgExp;
 
-			szlefttime = msecToString(lefttime * 1000);
+			//每小時平均 (lefttime 是秒);
+			lefttime = lefttime * 60 * 60;
+			szlefttime = msecToString(lefttime);
 		}
 	}
 
