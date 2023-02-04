@@ -5,6 +5,8 @@
 #include "structs.h"
 #include "listview.h"
 
+#include "util.hpp"
+
 //QtConcurrent
 #include <QFuture>
 #include <QFutureWatcher>
@@ -33,7 +35,7 @@ public://FUN
 
 	void AutoEatMeat(const PC& pc);
 	void AutoUseMagicInNormal(const PC& pc);
-	void AutoUseMagicForPetInNormal(const QVector<PET>& pet);
+	void AutoUseMagicForPetInNormal(int j, const PET& pet);
 
 	Q_REQUIRED_RESULT qbattle_data_t __vectorcall GetBattleData() const {
 #ifdef USE_LOCKER
@@ -73,7 +75,7 @@ public://FUN
 		QWriteLocker locker(&m_BATTLELOCKER);
 #endif
 		m_battleWorkData = {};
-	}
+}
 
 	Q_REQUIRED_RESULT PC __vectorcall GetCharData() const {
 #ifdef USE_LOCKER
@@ -137,11 +139,32 @@ public://FUN
 #endif
 		return m_magic;
 	}
+
+	Q_REQUIRED_RESULT MAGIC GetMagic(int i) {
+#ifdef USE_LOCKER
+		QReadLocker locker(&m_MAGICLOCKER);
+#endif
+		if (i >= 0 && i < m_magic.size())
+			return m_magic.at(i);
+		else
+			return MAGIC{};
+
+	}
+
 	void SetMagics(const QVector<MAGIC>& magic) {
 #ifdef USE_LOCKER
 		QWriteLocker locker(&m_MAGICLOCKER);
 #endif
-		m_magic = magic;
+		if (magic.size() == m_magic.size() && magic.size() == MAX_MAGIC)
+			m_magic = magic;
+	}
+
+	void SetMagic(int i, const MAGIC& magic) {
+#ifdef USE_LOCKER
+		QWriteLocker locker(&m_MAGICLOCKER);
+#endif
+		if (i >= 0 && i < m_magic.size())
+			m_magic[i] = magic;
 	}
 
 	Q_REQUIRED_RESULT QVector<PARTY> GetParties() {
@@ -150,11 +173,30 @@ public://FUN
 #endif
 		return m_party;
 	}
+
+	Q_REQUIRED_RESULT PARTY GetParty(int i) {
+#ifdef USE_LOCKER
+		QReadLocker locker(&m_PARTYLOCKER);
+#endif
+		if (i >= 0 && i < m_party.size())
+			return m_party.at(i);
+		else
+			return PARTY{};
+	}
+
 	void SetParties(const QVector<PARTY>& party) {
 #ifdef USE_LOCKER
 		QWriteLocker locker(&m_PARTYLOCKER);
 #endif
 		m_party = party;
+	}
+
+	void SetParty(int i, const PARTY& party) {
+#ifdef USE_LOCKER
+		QWriteLocker locker(&m_PARTYLOCKER);
+#endif
+		if (i >= 0 && i < m_party.size())
+			m_party[i] = party;
 	}
 
 	Q_REQUIRED_RESULT QVector<PET> GetPets() {
@@ -163,11 +205,30 @@ public://FUN
 #endif
 		return m_pet;
 	}
+
+	Q_REQUIRED_RESULT PET GetPet(int i) {
+#ifdef USE_LOCKER
+		QReadLocker locker(&m_PETLOCKER);
+#endif
+		if (i >= 0 && i < m_pet.size())
+			return m_pet.at(i);
+		else
+			return PET{};
+	}
 	void SetPets(const QVector<PET>& pet) {
 #ifdef USE_LOCKER
 		QWriteLocker locker(&m_PETLOCKER);
 #endif
-		m_pet = pet;
+		if (pet.size() == m_pet.size() && pet.size() == MAX_PET)
+			m_pet = pet;
+	}
+
+	void SetPet(int i, const PET& pet) {
+#ifdef USE_LOCKER
+		QWriteLocker locker(&m_PETLOCKER);
+#endif
+		if (i >= 0 && i < m_pet.size())
+			m_pet[i] = pet;
 	}
 
 	Q_REQUIRED_RESULT EXP GetExp() {
@@ -187,6 +248,23 @@ public://FUN
 		QWriteLocker locker(&m_EXPLOCKER);
 #endif
 		m_exp = {};
+	}
+
+	Q_REQUIRED_RESULT QVector<QVector<PET_SKILL>> GetPetsSkills()
+	{
+		return m_petSkill;
+	}
+
+	void SetPetsSkills(const QVector<QVector<PET_SKILL>>& skills)
+	{
+		if (skills.size() == m_petSkill.size() && skills.size() == 7)
+			m_petSkill = skills;
+	}
+
+	void SetPetSkills(int i, const QVector<PET_SKILL>& skills)
+	{
+		if (i >= 0 && i < m_petSkill.size() && m_petSkill.size() == MAX_SKILL)
+			m_petSkill[i] = skills;
 	}
 
 
@@ -224,7 +302,7 @@ public://FUN
 	void __vectorcall lssproto_FS_send(int fd, int flg);
 	void __vectorcall lssproto_MI_send(int fd, int fromindex, int toindex);
 	void  __vectorcall lssproto_SaMenu_send(int fd, int index);
-	void __vectorcall lssproto_WN_send(int fd, int seqno, int objindex, int select, char* data);
+	void __vectorcall lssproto_WN_send(int fd, int seqno, int objindex, int select, const std::string& data);
 	void __vectorcall lssproto_DI_send(int fd, int itemindex);
 	void __vectorcall lssproto_JOINTEAM_send(int fd);
 	void __vectorcall lssproto_L_send(int fd, int dir);
@@ -234,7 +312,7 @@ private://FUN
 
 
 
-	int __vectorcall NetDispatchMessage(int fd, char* encoded);
+	int __vectorcall NetDispatchMessage(int fd, char* encoded, size_t buflen);
 	void __vectorcall Parse_BC_StatusString(QString& data);
 	inline int __vectorcall _BATTLE_GetPositionIndexRange(int charposition, int* a_min, int* a_max, int* e_min, int* e_max);
 	void __vectorcall OnFastBattleWork(int fd, DWORD flag);
@@ -243,9 +321,6 @@ private://FUN
 	void __vectorcall _BATTLE_PetDoWork(int fd, int i, int enemy_pos);
 
 	int CalcMaxLoad();
-
-	//time
-	void __vectorcall RealTimeToSATime(LSTIME* lstime);
 
 	//recv
 	void __vectorcall lssproto_XYD_recv(int fd, int x, int y, int dir);
@@ -351,7 +426,7 @@ private://VER
 	QVector<PARTY> m_party = {};
 	//pet
 	QVector<PET> m_pet = {};
-	PET_SKILL m_petSkill[MAX_PET][7] = {};
+	QVector<QVector<PET_SKILL>> m_petSkill;
 
 	Map m_map = {};
 

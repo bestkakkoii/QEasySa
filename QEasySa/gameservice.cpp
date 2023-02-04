@@ -2,9 +2,6 @@
 #include "net/autil.h"
 #include "functiontypes.h"
 
-
-
-
 extern HANDLE g_hThread;
 extern std::shared_ptr<spdlog::logger> g_cont;
 extern std::wstring g_cpuid;
@@ -25,207 +22,6 @@ constexpr auto BC_FLG_REVERSE = (1 << 10);		//反轉
 #define USE_LOCKER
 
 static inline constexpr DWORD __vectorcall CHECK_AND(DWORD a, DWORD b) { return a & b; };
-
-int __vectorcall a62toi(char* a)
-{
-	int ret = 0;
-	int fugo = 1;
-
-	while (*a != NULL)
-	{
-		ret *= 62;
-		if ('0' <= (*a) && (*a) <= '9')
-			ret += (*a) - '0';
-		else
-			if ('a' <= (*a) && (*a) <= 'z')
-				ret += (*a) - 'a' + 10;
-			else
-				if ('A' <= (*a) && (*a) <= 'Z')
-					ret += (*a) - 'A' + 36;
-				else
-					if (*a == '-')
-						fugo = -1;
-					else
-						return 0;
-		a++;
-	}
-	return ret * fugo;
-}
-
-unsigned char* __vectorcall searchDelimPoint(unsigned char* src, unsigned char delim)
-{
-	unsigned char* pt = src;
-
-	while (1)
-	{
-		if (*pt == '\0')
-			return (unsigned char*)0;
-
-		if (*pt < 0x80)
-		{
-			// 1bayte????
-			if (*pt == delim)
-			{
-				// ??????????????????
-				pt++;
-				return pt;
-			}
-			pt++;
-		}
-		else
-		{
-			// 2byte????
-			pt++;
-			if (*pt == '\0')
-				return (unsigned char*)0;
-			pt++;
-		}
-	}
-}
-
-int __vectorcall copyStringUntilDelim(unsigned char* src, char delim, int maxlen, unsigned char* out)
-{
-	int i;
-
-	for (i = 0; i < maxlen; i++)
-	{
-		if (src[i] < 0x80)
-		{
-			// 1byte????
-
-			if (src[i] == delim)
-			{
-				// ????????
-				out[i] = '\0';
-				return 0;
-			}
-
-			// ????????
-			out[i] = src[i];
-
-			// ?????
-			if (out[i] == '\0')
-				return 1;
-		}
-		else
-		{
-			// 2byte????
-
-			// ????????
-			out[i] = src[i];
-
-			i++;
-			if (i >= maxlen)	// ???????????
-				break;
-
-			// ????????
-			out[i] = src[i];
-
-			// ???????????????????
-			if (out[i] == '\0')
-				return 1;
-		}
-	}
-
-	out[i] = '\0';
-
-	return 1;
-}
-
-int __vectorcall getStringToken(char* src, char delim, int count, int maxlen, char* out)
-{
-	int c = 1;
-	int i;
-	unsigned char* pt;
-
-	pt = (unsigned char*)src;
-	for (i = 0; i < count - 1; i++)
-	{
-		if (pt == (unsigned char*)0)
-			break;
-
-		pt = searchDelimPoint(pt, delim);
-	}
-
-	if (pt == (unsigned char*)0)
-	{
-		out[0] = '\0';
-		return 1;
-	}
-
-	return copyStringUntilDelim(pt, delim, maxlen, (unsigned char*)out);
-}
-
-int __vectorcall getIntegerToken(char* src, char delim, int count)
-{
-	char s[128];
-
-	getStringToken(src, delim, count, sizeof(s) - 1, s);
-
-	if (s[0] == '\0')
-		return -1;
-
-	return atoi(s);
-}
-
-int __vectorcall getInteger62Token(char* src, char delim, int count)
-{
-	char  s[128];
-
-	getStringToken(src, delim, count, sizeof(s) - 1, s);
-	if (s[0] == '\0')
-		return -1;
-
-	return a62toi(s);
-}
-
-char* __vectorcall makeStringFromEscaped(char* src)
-{
-	int		srclen = strlen(src);
-	int		searchindex = 0;
-	for (int i = 0; i < srclen; i++) {
-		if (IsDBCSLeadByte(src[i])) {
-			src[searchindex++] = src[i++];
-			src[searchindex++] = src[i];
-		}
-		else {
-			if (src[i] == '\\') {
-				int j;
-				i++;
-				for (j = 0; j < sizeof(escapeChar) / sizeof(escapeChar[0]); j++)
-					if (escapeChar[j].escapedchar == src[i]) {
-						src[searchindex++] = escapeChar[j].escapechar;
-						goto NEXT;
-					}
-				src[searchindex++] = src[i];
-			}
-			else
-				src[searchindex++] = src[i];
-		}
-	NEXT:
-		;
-	}
-	src[searchindex] = '\0';
-	return src;
-}
-
-unsigned int __vectorcall TimeGetTime(void)
-{
-#ifdef _TIME_GET_TIME
-	static __int64 time;
-	QueryPerformanceCounter(&CurrentTick);
-	return (unsigned int)(time = CurrentTick.QuadPart / tickCount.QuadPart);
-	//return GetTickCount();
-#else
-	//parma 28159 warn diaable
-	//save 
-#pragma warning(push)
-#pragma warning(disable:28159)
-	return GetTickCount();
-#pragma warning(pop)
-	//return timeGetTime();
-#endif
-}
 
 SOCKET WSAAPI New_socket(int af, int type, int protocol)
 {
@@ -251,7 +47,6 @@ int WSAAPI New_recv(SOCKET s, char* buf, int len, int flags)
 	return g_GameService.New_recv(s, buf, len, flags);
 }
 
-
 GameService::GameService()
 {
 	g_battle_timer.start();
@@ -263,6 +58,13 @@ GameService::GameService()
 	m_party.resize(MAX_PARTY);
 
 	m_pet.resize(MAX_PET);
+
+	QVector<PET_SKILL> pet(MAX_SKILL);
+	QVector<QVector<PET_SKILL>> m_petSkill(MAX_PET);
+	for (int i = 0; i < MAX_PET; i++)
+	{
+		m_petSkill[i] = pet;
+	}
 }
 
 GameService::~GameService()
@@ -403,7 +205,7 @@ int GameService::New_recv(SOCKET sockfd, char* buf, int len, int flags)
 
 	if (reveivedBytes != SOCKET_ERROR)
 	{
-		memcpy(autil->g_net_readbuf.get(), buf, len);
+		memcpy_s(autil->g_net_readbuf.get(), NETBUFSIZ, buf, len);
 		autil->g_net_readbuflen = len;
 	}
 
@@ -415,9 +217,9 @@ int GameService::New_recv(SOCKET sockfd, char* buf, int len, int flags)
 	}
 
 	QScopedArrayPointer <char> net_buffer(new char[MAX_BUFFER]());
-	if (autil->getLineFromReadBuf(net_buffer.get(), MAX_BUFFER - 1) == 0)
+	if (autil->getLineFromReadBuf(net_buffer.get(), MAX_BUFFER, MAX_BUFFER - 1) == 0)
 	{
-		NetDispatchMessage(sockfd, net_buffer.get());
+		NetDispatchMessage(sockfd, net_buffer.get(), MAX_BUFFER);
 	}
 
 	return reveivedBytes;
@@ -447,9 +249,9 @@ int GameService::New_WSARecv(SOCKET sockfd, LPWSABUF lpBuffers, DWORD  dwBufferC
 		}
 
 		QScopedArrayPointer <char> net_buffer(new char[MAX_BUFFER]());
-		while (autil->getLineFromReadBuf(net_buffer.get(), MAX_BUFFER - 1) == 0)
+		while (autil->getLineFromReadBuf(net_buffer.get(), MAX_BUFFER, MAX_BUFFER - 1) == 0)
 		{
-			NetDispatchMessage(sockfd, net_buffer.get());
+			NetDispatchMessage(sockfd, net_buffer.get(), MAX_BUFFER);
 		}
 
 		ZeroMemory(autil->g_net_readbuf.get(), nlen);
@@ -494,15 +296,14 @@ int GameService::Send(int msg, int wParam, int lParam)
 //	{LSSPROTO_SPET_RECV,3},
 //};
 
-int GameService::NetDispatchMessage(int fd, char* encoded)
+int GameService::NetDispatchMessage(int fd, char* encoded, size_t buflen)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
 	int		func = 0, fieldcount = 0;
 	int		iChecksum = 0, iChecksumrecv = 0;
-	QScopedArrayPointer <char> raw(new char[8192]());
-	autil->util_Init();
-	autil->util_DecodeMessage(raw.get(), encoded);
-	autil->util_SplitMessage(raw.get(), SEPARATOR);
+	QScopedArrayPointer <char> raw(new char[MAX_TINYBUFF]());
+	autil->util_DecodeMessage(raw.get(), MAX_TINYBUFF, encoded, buflen);
+	autil->util_SplitMessage(raw.get(), MAX_TINYBUFF, SEPARATOR, 1u);
 
 	static auto CHECKFUN = [&func](int cmpfunc)->bool
 	{
@@ -512,7 +313,7 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 
 	if (!autil->util_GetFunctionFromSlice(&func, &fieldcount))
 	{
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 1;
 	}
 
@@ -533,12 +334,12 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 
 		autil->util_deint(5, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_XYD_recv(fd, x, y, dir);
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 	}
 	else if (CHECKFUN(LSSPROTO_EV_RECV)/*WRAP 4*/)
 	{
@@ -548,12 +349,12 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 		iChecksum += autil->util_deint(3, &result);
 		autil->util_deint(4, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_EV_recv(fd, seqno, result);
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_EN_RECV)/*Battle EncountFlag //開始戰鬥7*/)
@@ -564,41 +365,41 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 		iChecksum += autil->util_deint(3, &field);
 		autil->util_deint(4, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		IS_ENABLE_IGNORE_DATA = IS_FAST_BATTLE;
 		lssproto_EN_recv(fd, result, field);
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_RS_RECV)/*戰後獎勵*/)
 	{
 		QScopedArrayPointer <char> data(new char[MAX_SMALLBUFF]());
-		iChecksum += autil->util_destring(2, data.get());
+		iChecksum += autil->util_destring(2, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(3, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_RS_recv(fd, data.get());
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_B_RECV)/*每回合開始的戰場資訊15*/)
 	{
 		QScopedArrayPointer <char> data(new char[MAX_SMALLBUFF]());
-		iChecksum += autil->util_destring(2, data.get());
+		iChecksum += autil->util_destring(2, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(3, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_B_recv(fd, data.get());
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_TK_RECV)/*收到對話36*/)
@@ -625,10 +426,10 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 		iChecksum += autil->util_deint(7, &tilesum);
 		iChecksum += autil->util_deint(8, &objsum);
 		iChecksum += autil->util_deint(9, &eventsum);
-		iChecksum += autil->util_destring(10, data.get());
+		iChecksum += autil->util_destring(10, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(11, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 		QString qstr = toUnicode(data.get());
@@ -653,28 +454,28 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 		iChecksum += autil->util_deint(4, &y1);
 		iChecksum += autil->util_deint(5, &x2);
 		iChecksum += autil->util_deint(6, &y2);
-		iChecksum += autil->util_destring(7, data.get());
+		iChecksum += autil->util_destring(7, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(8, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		SetMapFloor(fl);
 	}
-	else if (CHECKFUN(LSSPROTO_C_RECV)/*服务端发送的静态信息，可用于显示玩家，其它玩家，公交，宠物等信息 41*/)
+	else if (CHECKFUN(LSSPROTO_C_RECV)/*服務端發送的靜態信息，可用於顯示玩家，其它玩家，公交，寵物等信息 41*/)
 	{
 		QScopedArrayPointer <char> data(new char[MAX_SMALLBUFF]());
 
-		iChecksum += autil->util_destring(2, data.get());
+		iChecksum += autil->util_destring(2, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(3, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_C_recv(fd, data.get());
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_CA_RECV)/*42*/)
@@ -688,15 +489,15 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 	else if (CHECKFUN(LSSPROTO_S_RECV)/*更新所有基礎資訊 46*/)
 	{
 		QScopedArrayPointer <char> data(new char[MAX_SMALLBUFF]());
-		iChecksum += autil->util_destring(2, data.get());
+		iChecksum += autil->util_destring(2, data.get(), MAX_SMALLBUFF);
 		autil->util_deint(3, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_S_recv(fd, data.get());
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_KS_RECV)/*寵物更換狀態55*/)
@@ -737,12 +538,12 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 		iChecksum += autil->util_deint(2, &flg);
 		autil->util_deint(3, &iChecksumrecv);
 		if (iChecksum != iChecksumrecv) {
-			autil->SliceCount = 0;
+			autil->util_DiscardMessage();
 			return 1;
 		}
 
 		lssproto_NC_recv(fd, flg);
-		autil->SliceCount = 0;
+		autil->util_DiscardMessage();
 		return 0;
 	}
 	else if (CHECKFUN(LSSPROTO_PETST_RECV)/*寵物狀態改變 107*/)
@@ -758,7 +559,7 @@ int GameService::NetDispatchMessage(int fd, char* encoded)
 
 	}
 
-	autil->SliceCount = 0;
+	autil->util_DiscardMessage();
 	return 0;
 }
 
@@ -888,7 +689,7 @@ void GameService::lssproto_NC_recv(int fd, int flg)
 }
 
 
-//计算最大负重
+//計算最大負重
 int GameService::CalcMaxLoad()
 {
 	PC pc = GetCharData();
@@ -910,11 +711,11 @@ int GameService::CalcMaxLoad()
 		maxload = 15;
 		break;
 	}
-	//取腰带的负重
+	//取腰帶的負重
 	char* p, buf[5] = { 0 };
 	int i = 0;
 	if (!pc.item[5].name.isEmpty()) {
-		p = strstr((char*)pc.item[5].memo.data(), "负重");
+		p = strstr((char*)pc.item[5].memo.data(), "負重");
 		if (p == NULL)
 			return maxload;
 		p += 4;
@@ -946,7 +747,7 @@ void GameService::AutoEatMeat(const PC& pc)
 			else if (pc.item[i].name.contains("肉"))
 			{
 				for (int j = 0; j < stack; ++j)
-					lssproto_ID_send(*g_net_socket, i, NULL);//0代表删除使用后的物品(给人物使用)
+					lssproto_ID_send(*g_net_socket, i, NULL);//0代表刪除使用後的物品(給人物使用)
 			}
 		}
 	}
@@ -955,47 +756,43 @@ void GameService::AutoEatMeat(const PC& pc)
 //自動精靈
 void GameService::AutoUseMagicInNormal(const PC& pc)
 {
-	//查看是否有滋润的精灵
+	//查看是否有滋潤的精靈
 	QVector<MAGIC> magic = GetMagics();
 	int i = 0;
 	for (; i < MAX_MAGIC; i++)
 	{
-		if (!magic.at(i).name.isEmpty() && magic.at(i).name.contains("滋润的") && magic.at(i).useFlag != 0)
+		if (!magic.at(i).name.isEmpty() && magic.at(i).name.contains("滋潤的") && magic.at(i).useFlag != 0)
 			break;
 	}
-	//人物平时精灵补血
+	//人物平時精靈補血
 	if (!IS_BATTLE_FLAG && i < MAX_MAGIC && ((double)pc.hp / pc.maxhp) * 100 <= 99)
 	{
 		lssproto_MU_send(*g_net_socket, i, 0);
 	}
 }
 
-void GameService::AutoUseMagicForPetInNormal(const QVector<PET>& pet)
+void GameService::AutoUseMagicForPetInNormal(int j, const PET& pet)
 {
-	//查看是否有滋润的精灵
+	//查看是否有滋潤的精靈
 	int i = 0;
 	QVector<MAGIC> magic = GetMagics();
 	for (; i < MAX_MAGIC; i++)
 	{
-		if (!magic.at(i).name.isEmpty() && magic.at(i).name.contains("滋润的") && magic.at(i).useFlag != 0)
+		if (!magic.at(i).name.isEmpty() && magic.at(i).name.contains("滋潤的") && magic.at(i).useFlag != 0)
 			break;
 	}
-	//宠物平时精灵补血
+	//寵物平時精靈補血
 	if (i < MAX_MAGIC)
 	{
-		for (int j = 0; j < MAX_PET; j++)
+		if (!IS_BATTLE_FLAG && pet.maxHp > 0 && ((double)pet.hp / pet.maxHp) * 100 <= 99)
 		{
-			if (!IS_BATTLE_FLAG && pet.at(j).maxHp > 0 && ((double)pet.at(j).hp / pet.at(j).maxHp) * 100 <= 99)
-			{
-				lssproto_MU_send(*g_net_socket, i, j + 1);
-			}
+			lssproto_MU_send(*g_net_socket, i, j + 1);
 		}
 	}
 }
 
 void GameService::lssproto_RS_recv(int fd, char* command)
 {
-
 	lssproto_EO_send(fd, 0);
 	if (IS_REWARD_SHOW)
 	{
@@ -1004,21 +801,20 @@ void GameService::lssproto_RS_recv(int fd, char* command)
 	else
 		return;
 
+	Util util;
 	//-2|0|3,0|0|4,0|0|0,,,|||
-	//-2|人物是否升级|获得经验,第几只宠物|是否升级|获得经验,第几只宠物|是否升级|获得经验,,,获得物品1|获得物品2|获得物品3|获得物品4
+	//-2|人物是否升級|獲得經驗,第幾只寵物|是否升級|獲得經驗,第幾只寵物|是否升級|獲得經驗,,,獲得物品1|獲得物品2|獲得物品3|獲得物品4
 	QString reward = toUnicode(command).simplified();
 	if (reward.isEmpty()) return;
 
-	char buff[256] = {};
 	int item_index = reward.lastIndexOf(",,,");
 	QString szRewardItem = reward.mid(item_index + 3);
 	reward = reward.left(item_index);
 
-	Tokenize(reward, "|"); //-2;
-	bool ischar_leveup = Tokenize(reward, "|").toInt() == 1;
-	QString szchexp = Tokenize(reward, ",");
-	_snprintf_s(buff, sizeof(buff), "%s", szchexp.toStdString().c_str());
-	int char_exp = a62toi(buff);
+	util.Tokenize(reward, "|"); //-2;
+	bool ischar_leveup = util.Tokenize(reward, "|").toInt() == 1;
+	QString szchexp = util.Tokenize(reward, ",").simplified();
+	int char_exp = util.a62toi(szchexp);
 	struct PET_REWARD
 	{
 		int pet_index[3] = {};
@@ -1036,9 +832,7 @@ void GameService::lssproto_RS_recv(int fd, char* command)
 			continue;
 		pet_reward.pet_index[n] = Pets[0].toInt();
 		pet_reward.ispet_leveup[n] = Pets[1].toInt();
-		ZeroMemory(buff, sizeof(buff));
-		_snprintf_s(buff, sizeof(buff), "%s", Pets[2].toStdString().c_str());
-		pet_reward.pet_exp[n] = a62toi(buff);
+		pet_reward.pet_exp[n] = util.a62toi(Pets[2].simplified());
 		++n;
 		if (n >= 3)
 			break;
@@ -1134,6 +928,7 @@ inline int GameService::_BATTLE_GetPositionIndexRange(int charposition, int* a_m
 //敵1位置|敵1名稱|未知|敵1形象|敵1等級|敵1HP|敵1最大HP|敵人異常狀態（死亡，中毒等）|0||0|0|0|
 void GameService::Parse_BC_StatusString(QString& data)
 {
+	Util util;
 	do
 	{
 		qbattle_data_t _battle = GetBattleData();
@@ -1151,34 +946,34 @@ void GameService::Parse_BC_StatusString(QString& data)
 		_battle.reserved = data;//(readString(GetGameLibraryModule() + MAKEADDR(0x5, 0x8, 0xA, 0x0, 0x2, 0x0), 2048, true));// bluecg.dll+0x58A020;;
 		if (_battle.reserved.isEmpty()) break;
 
-		//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|贝鲁卡|57|330|330|F|龟之盾||187AF|6|35|35|1|0|0|0|0||0|0|0|10|龟之盾||187AF|5|30|30|1|0|0|0|0||0|0|0|11|龟之盾||187AF|4|2B|2B|1|0|0|0|0||0|0|0|12|龟之盾||187AF|6|34|34|1|0|0|0|0||0|0|0|13|龟之盾||187AF|6|33|33|1|0|0|0|0||0|0|0|
-		//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|贝鲁卡|57|330|330  |5|邦奇诺||187C2|61|3D5|3D5|1 |0|0|0|0||0|0|0     |F|昆伊||187C9|5|29|29|1|0|0|0|0||0|0|0|10|昆伊||187C9|3|1F|1F|1|0|0|0|0||0|0|0|
+		//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|貝魯卡|57|330|330|F|龜之盾||187AF|6|35|35|1|0|0|0|0||0|0|0|10|龜之盾||187AF|5|30|30|1|0|0|0|0||0|0|0|11|龜之盾||187AF|4|2B|2B|1|0|0|0|0||0|0|0|12|龜之盾||187AF|6|34|34|1|0|0|0|0||0|0|0|13|龜之盾||187AF|6|33|33|1|0|0|0|0||0|0|0|
+		//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|貝魯卡|57|330|330  |5|邦奇諾||187C2|61|3D5|3D5|1 |0|0|0|0||0|0|0     |F|昆伊||187C9|5|29|29|1|0|0|0|0||0|0|0|10|昆伊||187C9|3|1F|1F|1|0|0|0|0||0|0|0|
 		while (data.size())
 		{
 			qbattle_object_t btinfo = {};
 			bool ok = false;
-			btinfo.pos = Tokenize(data, "|").toInt(&ok, 16);
+			btinfo.pos = util.Tokenize(data, "|").toInt(&ok, 16);
 			if (!ok) continue;
 			if (btinfo.pos >= MAX_ENEMY) continue;
 
 
 			btinfo.act = 0;//重製動作
-			btinfo.name = Tokenize(data, "|");
-			btinfo.freeName = Tokenize(data, "|");
-			btinfo.model = Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.level = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.hp = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.maxhp = (int)Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.name = util.Tokenize(data, "|");
+			btinfo.freeName = util.Tokenize(data, "|");
+			btinfo.model = util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.level = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.hp = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.maxhp = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
 			btinfo.hp_percent = percent(btinfo.hp, btinfo.maxhp);
-			btinfo.status = (DWORD)Tokenize(data, "|").toUInt(nullptr, 16);
-			btinfo.unknown0 = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.unknown1 = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.unknown2 = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.isride = (int)Tokenize(data, "|").toInt(nullptr, 16);//是否騎乘標志(0:未騎，1騎,-1落馬)
-			btinfo.ridepetname = Tokenize(data, "|");
-			btinfo.ridepetlevel = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.ridepethp = (int)Tokenize(data, "|").toInt(nullptr, 16);
-			btinfo.ridepetmaxhp = (int)Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.status = (DWORD)util.Tokenize(data, "|").toUInt(nullptr, 16);
+			btinfo.unknown0 = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.unknown1 = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.unknown2 = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.isride = (int)util.Tokenize(data, "|").toInt(nullptr, 16);//是否騎乘標志(0:未騎，1騎,-1落馬)
+			btinfo.ridepetname = util.Tokenize(data, "|");
+			btinfo.ridepetlevel = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.ridepethp = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
+			btinfo.ridepetmaxhp = (int)util.Tokenize(data, "|").toInt(nullptr, 16);
 			//unk0:%8, unk1:%9, unk2:%10, 
 			if (btinfo.pos >= 0 && btinfo.pos <= 9 && IS_DEBUG_MODE)
 			{
@@ -1341,10 +1136,11 @@ void GameService::Parse_BC_StatusString(QString& data)
 
 void GameService::lssproto_B_recv(int fd, char* command)
 {
+	Util util;
 	int i = 0, j = 0;
 	QString data = toUnicode(command);
 
-	//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|贝鲁卡|57|330|330|F|龟之盾||187AF|6|35|35|1|0|0|0|0||0|0|0|10|龟之盾||187AF|5|30|30|1|0|0|0|0||0|0|0|11|龟之盾||187AF|4|2B|2B|1|0|0|0|0||0|0|0|12|龟之盾||187AF|6|34|34|1|0|0|0|0||0|0|0|13|龟之盾||187AF|6|33|33|1|0|0|0|0||0|0|0|
+	//BC|0|0|QMutex||18A8D|5F|217|217|5|0|0|0|1|貝魯卡|57|330|330|F|龜之盾||187AF|6|35|35|1|0|0|0|0||0|0|0|10|龜之盾||187AF|5|30|30|1|0|0|0|0||0|0|0|11|龜之盾||187AF|4|2B|2B|1|0|0|0|0||0|0|0|12|龜之盾||187AF|6|34|34|1|0|0|0|0||0|0|0|13|龜之盾||187AF|6|33|33|1|0|0|0|0||0|0|0|
 	PC pc = {};
 	qbattle_data_t bt = {};
 	if (*(command + 1) == 'C')
@@ -1354,8 +1150,8 @@ void GameService::lssproto_B_recv(int fd, char* command)
 		// 戰寵在隊伍中的位置|戰寵名稱|未知|戰寵形象|戰寵等級|戰寵HP|戰寵最大HP|戰寵異常狀態（昏睡，死亡，中毒等）|0||0|0|0|
 		//敵1位置|敵1名稱|未知|敵1形象|敵1等級|敵1HP|敵1最大HP|敵人異常狀態（死亡，中毒等）|0||0|0|0|
 
-		Tokenize(data, "|");
-		int field_attr = Tokenize(data, "|").toInt();
+		util.Tokenize(data, "|");
+		int field_attr = util.Tokenize(data, "|").toInt();
 		Parse_BC_StatusString(data);
 		bt = GetBattleData();
 		pc = GetCharData();
@@ -1504,11 +1300,11 @@ void GameService::OnFastBattleWork(int fd, DWORD diff)
 	//PC pc = GetCharData();
 	qbattle_object_t CHAR = bt.obj.at(bt.char_position);
 
-	//J|精灵技能编号|施放对象
-	//I|物品位置|使用对象（14代表我方全体，15代表敌方全体，0代表自己，5代表宠物）
-	//H|攻击对象编号(人物攻击)，P|魔法技能编号|施放对象
-	//W|宠物技能编号|施放对象
-	//G代表人物防御，E代表人物逃跑，T代表捕获，S代表换宠
+	//J|精靈技能編號|施放對象
+	//I|物品位置|使用對象（14代表我方全體，15代表敵方全體，0代表自己，5代表寵物）
+	//H|攻擊對象編號(人物攻擊)，P|魔法技能編號|施放對象
+	//W|寵物技能編號|施放對象
+	//G代表人物防禦，E代表人物逃跑，T代表捕獲，S代表換寵
 	QVector<int> poses;
 	for (int i = bt.allie_max; i >= bt.allie_min; i--)
 	{
@@ -1592,7 +1388,7 @@ void GameService::_BATTLE_CharDoWork(int fd, const qbattle_data_t& bt, int i, in
 	{
 		if (!magic.at(skill_index).name.isEmpty() && magic.at(skill_index).useFlag != 0)
 		{
-			if (magic.at(skill_index).name.contains("滋润的"))
+			if (magic.at(skill_index).name.contains("滋潤的"))
 			{
 				target_index = SINGLE;
 				break;
@@ -1698,45 +1494,13 @@ void GameService::_BATTLE_PetDoWork(int fd, int i, int enemy_pos)
 	SetBattleActionStatusByPosIndex(i, YES);
 }
 
-constexpr long era = (long)912766409 + 5400;
-void GameService::RealTimeToSATime(LSTIME* lstime)
+
+
+
+//各種遊戲數據
+void GameService::lssproto_S_recv(int fd, char* cdata)
 {
-	long lsseconds; /* LS????? */
-	long lsdays; /* LS????? */
-
-	//cary 十五
-	lsseconds = (TimeGetTime() - m_FirstTime) / 1000 + m_serverTime - era;
-
-	lstime->year = (int)(lsseconds / (LSTIME_SECONDS_PER_DAY * LSTIME_DAYS_PER_YEAR));
-
-	lsdays = lsseconds / LSTIME_SECONDS_PER_DAY;
-	lstime->day = lsdays % LSTIME_DAYS_PER_YEAR;
-
-	//(750*12)
-	lstime->hour = (int)(lsseconds % LSTIME_SECONDS_PER_DAY)
-
-		* LSTIME_HOURS_PER_DAY / LSTIME_SECONDS_PER_DAY;
-
-	return;
-}
-
-LSTIME_SECTION getLSTime(LSTIME* lstime)
-{
-	if (NIGHT_TO_MORNING < lstime->hour
-		&& lstime->hour <= MORNING_TO_NOON)
-		return LS_MORNING;
-	else if (NOON_TO_EVENING < lstime->hour
-		&& lstime->hour <= EVENING_TO_NIGHT)
-		return LS_EVENING;
-	else if (EVENING_TO_NIGHT < lstime->hour
-		&& lstime->hour <= NIGHT_TO_MORNING)
-		return LS_NIGHT;
-	else
-		return LS_NOON;
-}
-
-void GameService::lssproto_S_recv(int fd, char* data)
-{
+	Util util;
 	/*================================
 	C warp 用
 	D 修正時間
@@ -1754,11 +1518,8 @@ void GameService::lssproto_S_recv(int fd, char* data)
 	G 職業技能冷卻時間
 	================================*/
 	QScopedPointer<PC> pc(q_check_ptr(new PC(GetCharData())));
-	QVector<PARTY> party = GetParties();
-	QVector<MAGIC> magic = GetMagics();
-	QVector<PET> pet = GetPets();
-	EXP exp = GetExp();
-	switch (data[0])
+	const QVector<PARTY> party = GetParties();
+	switch (cdata[0])
 	{
 	case 'C':
 	{
@@ -1776,12 +1537,13 @@ void GameService::lssproto_S_recv(int fd, char* data)
 		//	warpEffectFlag = FALSE;
 		//	warpEffectStart = TRUE;
 		//}
-		data++;
-		fl = getIntegerToken(data, S_DELIM, 1);
-		maxx = getIntegerToken(data, S_DELIM, 2);
-		maxy = getIntegerToken(data, S_DELIM, 3);
-		gx = getIntegerToken(data, S_DELIM, 4);
-		gy = getIntegerToken(data, S_DELIM, 5);
+		cdata++;
+		QString data = toUnicode(cdata);
+		fl = util.getIntegerToken(data, S_DELIM, 1);
+		maxx = util.getIntegerToken(data, S_DELIM, 2);
+		maxy = util.getIntegerToken(data, S_DELIM, 3);
+		gx = util.getIntegerToken(data, S_DELIM, 4);
+		gy = util.getIntegerToken(data, S_DELIM, 5);
 		SetMapFloor(fl);
 		//setMap(fl, gx, gy);
 		//nowFloorGxSize = maxx;
@@ -1798,85 +1560,89 @@ void GameService::lssproto_S_recv(int fd, char* data)
 	}
 	case 'D':
 	{
-		data++;
-		pc->id = getIntegerToken(data, S_DELIM, 1);
-		m_serverTime = getIntegerToken(data, S_DELIM, 2);
-		m_FirstTime = TimeGetTime();
-		RealTimeToSATime(&m_SaTime);
-		m_SaTimeZoneNo = getLSTime(&m_SaTime);
+		cdata++;
+		QString data = toUnicode(cdata);
+		pc->id = util.getIntegerToken(data, S_DELIM, 1);
+		m_serverTime = util.getIntegerToken(data, S_DELIM, 2);
+		m_FirstTime = GetTickCount64();
+		m_SaTimeZoneNo = util.getLSTime(&m_SaTime, m_FirstTime, m_serverTime);
+		SetCharData(*pc);
 		//PaletteChange(m_SaTimeZoneNo, 0);
 		break;
 		//andy_add
 	}
 	case 'X':
 	{
-		pc->lowsride = getIntegerToken(data, S_DELIM, 2);
+		QString data = toUnicode(cdata);
+		pc->lowsride = util.getIntegerToken(data, S_DELIM, 2);
+		SetCharData(*pc);
 		break;
 	}
 	case 'P':
 	{
-		char name[256] = {}, freeName[256] = {};
+		QString name, freeName;
 		int i = 0, kubun = 0;
 		unsigned int mask = 0u;
 
-		data++;
-		kubun = getInteger62Token(data, S_DELIM, 1);
+		cdata++;
+		QString data = toUnicode(cdata);
+		kubun = util.getInteger62Token(data, S_DELIM, 1);
 		//if (!bNewServer)
 		//	pc->ridePetNo = -1;
 
 		if (kubun == 1)
 		{
-			pc->hp = getIntegerToken(data, S_DELIM, 2);		// 0x00000002
-			pc->maxhp = getIntegerToken(data, S_DELIM, 3);		// 0x00000004
+			pc->hp = util.getIntegerToken(data, S_DELIM, 2);		// 0x00000002
+			pc->maxhp = util.getIntegerToken(data, S_DELIM, 3);		// 0x00000004
 			pc->hp_percent = percent(pc->hp, pc->maxhp);
-			pc->mp = getIntegerToken(data, S_DELIM, 4);		// 0x00000008
-			pc->maxmp = getIntegerToken(data, S_DELIM, 5);		// 0x00000010
+			pc->mp = util.getIntegerToken(data, S_DELIM, 4);		// 0x00000008
+			pc->maxmp = util.getIntegerToken(data, S_DELIM, 5);		// 0x00000010
 			pc->mp_percent = percent(pc->mp, pc->maxmp);
-			pc->vital = getIntegerToken(data, S_DELIM, 6);		// 0x00000020
-			pc->str = getIntegerToken(data, S_DELIM, 7);		// 0x00000040
-			pc->tgh = getIntegerToken(data, S_DELIM, 8);		// 0x00000080
-			pc->dex = getIntegerToken(data, S_DELIM, 9);		// 0x00000100
-			pc->exp = getIntegerToken(data, S_DELIM, 10);		// 0x00000200
-			pc->maxExp = getIntegerToken(data, S_DELIM, 11);		// 0x00000400
+			pc->vital = util.getIntegerToken(data, S_DELIM, 6);		// 0x00000020
+			pc->str = util.getIntegerToken(data, S_DELIM, 7);		// 0x00000040
+			pc->tgh = util.getIntegerToken(data, S_DELIM, 8);		// 0x00000080
+			pc->dex = util.getIntegerToken(data, S_DELIM, 9);		// 0x00000100
+			pc->exp = util.getIntegerToken(data, S_DELIM, 10);		// 0x00000200
+			pc->maxExp = util.getIntegerToken(data, S_DELIM, 11);		// 0x00000400
+			EXP exp = GetExp();
 			exp.left = pc->maxExp - pc->exp;
+			SetExp(exp);
 
-			pc->level = getIntegerToken(data, S_DELIM, 12);		// 0x00000800
-			pc->atk = getIntegerToken(data, S_DELIM, 13);		// 0x00001000
-			pc->def = getIntegerToken(data, S_DELIM, 14);		// 0x00002000
-			pc->quick = getIntegerToken(data, S_DELIM, 15);		// 0x00004000
-			pc->charm = getIntegerToken(data, S_DELIM, 16);		// 0x00008000
-			pc->luck = getIntegerToken(data, S_DELIM, 17);		// 0x00010000
-			pc->earth = getIntegerToken(data, S_DELIM, 18);		// 0x00020000
-			pc->water = getIntegerToken(data, S_DELIM, 19);		// 0x00040000
-			pc->fire = getIntegerToken(data, S_DELIM, 20);		// 0x00080000
-			pc->wind = getIntegerToken(data, S_DELIM, 21);		// 0x00100000
-			pc->gold = getIntegerToken(data, S_DELIM, 22);		// 0x00200000
-			pc->titleNo = getIntegerToken(data, S_DELIM, 23);		// 0x00400000
-			pc->dp = getIntegerToken(data, S_DELIM, 24);		// 0x00800000
-			pc->transmigration = getIntegerToken(data, S_DELIM, 25);// 0x01000000
-			pc->ridePetNo = getIntegerToken(data, S_DELIM, 26);	// 0x02000000
-			pc->learnride = getIntegerToken(data, S_DELIM, 27);	// 0x04000000
-			pc->baseGraNo = getIntegerToken(data, S_DELIM, 28);	// 0x08000000
+			pc->level = util.getIntegerToken(data, S_DELIM, 12);		// 0x00000800
+			pc->atk = util.getIntegerToken(data, S_DELIM, 13);		// 0x00001000
+			pc->def = util.getIntegerToken(data, S_DELIM, 14);		// 0x00002000
+			pc->quick = util.getIntegerToken(data, S_DELIM, 15);		// 0x00004000
+			pc->charm = util.getIntegerToken(data, S_DELIM, 16);		// 0x00008000
+			pc->luck = util.getIntegerToken(data, S_DELIM, 17);		// 0x00010000
+			pc->earth = util.getIntegerToken(data, S_DELIM, 18);		// 0x00020000
+			pc->water = util.getIntegerToken(data, S_DELIM, 19);		// 0x00040000
+			pc->fire = util.getIntegerToken(data, S_DELIM, 20);		// 0x00080000
+			pc->wind = util.getIntegerToken(data, S_DELIM, 21);		// 0x00100000
+			pc->gold = util.getIntegerToken(data, S_DELIM, 22);		// 0x00200000
+			pc->titleNo = util.getIntegerToken(data, S_DELIM, 23);		// 0x00400000
+			pc->dp = util.getIntegerToken(data, S_DELIM, 24);		// 0x00800000
+			pc->transmigration = util.getIntegerToken(data, S_DELIM, 25);// 0x01000000
+			pc->ridePetNo = util.getIntegerToken(data, S_DELIM, 26);	// 0x02000000
+			pc->learnride = util.getIntegerToken(data, S_DELIM, 27);	// 0x04000000
+			pc->baseGraNo = util.getIntegerToken(data, S_DELIM, 28);	// 0x08000000
 #ifdef _NEW_RIDEPETS
-			pc->lowsride = getIntegerToken(data, S_DELIM, 29);		// 0x08000000
+			pc->lowsride = util.getIntegerToken(data, S_DELIM, 29);		// 0x08000000
 #endif
 #ifdef _SFUMATO
 			pc->sfumato = 0xff0000;
 #endif
-			getStringToken(data, S_DELIM, 30, sizeof(name) - 1, name);
-			makeStringFromEscaped(name);
-			if (strlen(name) <= CHAR_NAME_LEN)
-				pc->name = toUnicode(name);
-			getStringToken(data, S_DELIM, 31, sizeof(freeName) - 1, freeName);
-			makeStringFromEscaped(freeName);
-			if (strlen(freeName) <= CHAR_FREENAME_LEN)
-				pc->freeName = toUnicode(freeName);
+			util.getStringToken(data, S_DELIM, 30, name);
+			util.makeStringFromEscaped(name);
+			pc->name = name;
+			util.getStringToken(data, S_DELIM, 31, freeName);
+			util.makeStringFromEscaped(freeName);
+			pc->freeName = freeName;
 
 #ifdef _NEW_ITEM_
-			pc->道具欄狀態 = getIntegerToken(data, S_DELIM, 32);
+			pc->道具欄狀態 = util.getIntegerToken(data, S_DELIM, 32);
 #endif
 #ifdef _SA_VERSION_25
-			int pointindex = getIntegerToken(data, S_DELIM, 33);
+			int pointindex = util.getIntegerToken(data, S_DELIM, 33);
 			QStringList pontname = {
 				"薩姆吉爾村",
 				"瑪麗娜絲村",
@@ -1885,14 +1651,13 @@ void GameService::lssproto_S_recv(int fd, char* data)
 			};
 			pc->chusheng = pontname[pointindex];
 #ifdef _MAGIC_ITEM_
-			pc->法寶道具狀態 = getIntegerToken(data, S_DELIM, 34);
-			pc->道具光環效果 = getIntegerToken(data, S_DELIM, 35);
+			pc->法寶道具狀態 = util.getIntegerToken(data, S_DELIM, 34);
+			pc->道具光環效果 = util.getIntegerToken(data, S_DELIM, 35);
 #endif
 #endif
 			//平時精靈補血
+			SetCharData(*pc);
 			AutoUseMagicInNormal(*pc);
-
-
 		}
 		else
 		{
@@ -1904,179 +1669,181 @@ void GameService::lssproto_S_recv(int fd, char* data)
 				{
 					if (mask == 0x00000002) // ( 1 << 1 )
 					{
-						pc->hp = getIntegerToken(data, S_DELIM, i);// 0x00000002
+						pc->hp = util.getIntegerToken(data, S_DELIM, i);// 0x00000002
 						i++;
 					}
 					else if (mask == 0x00000004) // ( 1 << 2 )
 					{
-						pc->maxhp = getIntegerToken(data, S_DELIM, i);// 0x00000004
+						pc->maxhp = util.getIntegerToken(data, S_DELIM, i);// 0x00000004
 						i++;
 					}
 					else if (mask == 0x00000008)
 					{
-						pc->mp = getIntegerToken(data, S_DELIM, i);// 0x00000008
+						pc->mp = util.getIntegerToken(data, S_DELIM, i);// 0x00000008
 						i++;
 					}
 					else if (mask == 0x00000010)
 					{
-						pc->maxmp = getIntegerToken(data, S_DELIM, i);// 0x00000010
+						pc->maxmp = util.getIntegerToken(data, S_DELIM, i);// 0x00000010
 						i++;
 					}
 					else if (mask == 0x00000020)
 					{
-						pc->vital = getIntegerToken(data, S_DELIM, i);// 0x00000020
+						pc->vital = util.getIntegerToken(data, S_DELIM, i);// 0x00000020
 						i++;
 					}
 					else if (mask == 0x00000040)
 					{
-						pc->str = getIntegerToken(data, S_DELIM, i);// 0x00000040
+						pc->str = util.getIntegerToken(data, S_DELIM, i);// 0x00000040
 						i++;
 					}
 					else if (mask == 0x00000080)
 					{
-						pc->tgh = getIntegerToken(data, S_DELIM, i);// 0x00000080
+						pc->tgh = util.getIntegerToken(data, S_DELIM, i);// 0x00000080
 						i++;
 					}
 					else if (mask == 0x00000100)
 					{
-						pc->dex = getIntegerToken(data, S_DELIM, i);// 0x00000100
+						pc->dex = util.getIntegerToken(data, S_DELIM, i);// 0x00000100
 						i++;
 					}
 					else if (mask == 0x00000200)
 					{
-						pc->exp = getIntegerToken(data, S_DELIM, i);// 0x00000200
-						exp.left = pc->maxExp - pc->exp;
+						pc->exp = util.getIntegerToken(data, S_DELIM, i);// 0x00000200
 						i++;
 					}
 					else if (mask == 0x00000400)
 					{
-						pc->maxExp = getIntegerToken(data, S_DELIM, i);// 0x00000400
+						pc->maxExp = util.getIntegerToken(data, S_DELIM, i);// 0x00000400
 						i++;
 					}
 					else if (mask == 0x00000800)
 					{
-						pc->level = getIntegerToken(data, S_DELIM, i);// 0x00000800
+						pc->level = util.getIntegerToken(data, S_DELIM, i);// 0x00000800
 						i++;
 					}
 					else if (mask == 0x00001000)
 					{
-						pc->atk = getIntegerToken(data, S_DELIM, i);// 0x00001000
+						pc->atk = util.getIntegerToken(data, S_DELIM, i);// 0x00001000
 						i++;
 					}
 					else if (mask == 0x00002000)
 					{
-						pc->def = getIntegerToken(data, S_DELIM, i);// 0x00002000
+						pc->def = util.getIntegerToken(data, S_DELIM, i);// 0x00002000
 						i++;
 					}
 					else if (mask == 0x00004000)
 					{
-						pc->quick = getIntegerToken(data, S_DELIM, i);// 0x00004000
+						pc->quick = util.getIntegerToken(data, S_DELIM, i);// 0x00004000
 						i++;
 					}
 					else if (mask == 0x00008000)
 					{
-						pc->charm = getIntegerToken(data, S_DELIM, i);// 0x00008000
+						pc->charm = util.getIntegerToken(data, S_DELIM, i);// 0x00008000
 						i++;
 					}
 					else if (mask == 0x00010000)
 					{
-						pc->luck = getIntegerToken(data, S_DELIM, i);// 0x00010000
+						pc->luck = util.getIntegerToken(data, S_DELIM, i);// 0x00010000
 						i++;
 					}
 					else if (mask == 0x00020000)
 					{
-						pc->earth = getIntegerToken(data, S_DELIM, i);// 0x00020000
+						pc->earth = util.getIntegerToken(data, S_DELIM, i);// 0x00020000
 						i++;
 					}
 					else if (mask == 0x00040000)
 					{
-						pc->water = getIntegerToken(data, S_DELIM, i);// 0x00040000
+						pc->water = util.getIntegerToken(data, S_DELIM, i);// 0x00040000
 						i++;
 					}
 					else if (mask == 0x00080000)
 					{
-						pc->fire = getIntegerToken(data, S_DELIM, i);// 0x00080000
+						pc->fire = util.getIntegerToken(data, S_DELIM, i);// 0x00080000
 						i++;
 					}
 					else if (mask == 0x00100000)
 					{
-						pc->wind = getIntegerToken(data, S_DELIM, i);// 0x00100000
+						pc->wind = util.getIntegerToken(data, S_DELIM, i);// 0x00100000
 						i++;
 					}
 					else if (mask == 0x00200000)
 					{
-						pc->gold = getIntegerToken(data, S_DELIM, i);// 0x00200000
+						pc->gold = util.getIntegerToken(data, S_DELIM, i);// 0x00200000
 						i++;
 					}
 					else if (mask == 0x00400000)
 					{
-						pc->titleNo = getIntegerToken(data, S_DELIM, i);// 0x00400000
+						pc->titleNo = util.getIntegerToken(data, S_DELIM, i);// 0x00400000
 						i++;
 					}
 					else if (mask == 0x00800000)
 					{
-						pc->dp = getIntegerToken(data, S_DELIM, i);// 0x00800000
+						pc->dp = util.getIntegerToken(data, S_DELIM, i);// 0x00800000
 						i++;
 					}
 					else if (mask == 0x01000000)
 					{
-						pc->transmigration = getIntegerToken(data, S_DELIM, i);// 0x01000000
+						pc->transmigration = util.getIntegerToken(data, S_DELIM, i);// 0x01000000
 						i++;
 					}
 					else if (mask == 0x02000000)
 					{
-						getStringToken(data, S_DELIM, i, sizeof(name) - 1, name);// 0x01000000
-						makeStringFromEscaped(name);
-						if (strlen(name) <= CHAR_NAME_LEN)
-							pc->name = toUnicode(name);
+						util.getStringToken(data, S_DELIM, i, name);// 0x01000000
+						util.makeStringFromEscaped(name);
+						pc->name = name;
 						i++;
 					}
 					else if (mask == 0x04000000)
 					{
-						getStringToken(data, S_DELIM, i, sizeof(freeName) - 1, freeName);// 0x02000000
-						makeStringFromEscaped(freeName);
-						if (strlen(freeName) <= CHAR_FREENAME_LEN)
-							pc->freeName = toUnicode(freeName);
+						util.getStringToken(data, S_DELIM, i, freeName);// 0x02000000
+						util.makeStringFromEscaped(freeName);
+						pc->freeName = freeName;
 						i++;
 					}
 					else if (mask == 0x08000000) // ( 1 << 27 )
 					{
-						pc->ridePetNo = getIntegerToken(data, S_DELIM, i);// 0x08000000
+						pc->ridePetNo = util.getIntegerToken(data, S_DELIM, i);// 0x08000000
 						i++;
 					}
 					else if (mask == 0x10000000) // ( 1 << 28 )
 					{
-						pc->learnride = getIntegerToken(data, S_DELIM, i);// 0x10000000
+						pc->learnride = util.getIntegerToken(data, S_DELIM, i);// 0x10000000
 						i++;
 					}
 					else if (mask == 0x20000000) // ( 1 << 29 )
 					{
-						pc->baseGraNo = getIntegerToken(data, S_DELIM, i);// 0x20000000
+						pc->baseGraNo = util.getIntegerToken(data, S_DELIM, i);// 0x20000000
 						i++;
 					}
 					else if (mask == 0x40000000) // ( 1 << 30 )
 					{
-						pc->skywalker = getIntegerToken(data, S_DELIM, i);// 0x40000000
+						pc->skywalker = util.getIntegerToken(data, S_DELIM, i);// 0x40000000
 						i++;
 					}
 #ifdef _CHARSIGNADY_NO_
 					else if (mask == 0x80000000) // ( 1 << 31 )
 					{
-						pc->簽到標記 = getIntegerToken(data, S_DELIM, i);// 0x80000000
+						pc->簽到標記 = util.getIntegerToken(data, S_DELIM, i);// 0x80000000
 						i++;
 					}
 #endif
 				}
 			}
+			EXP exp = GetExp();
+			exp.left = pc->maxExp - pc->exp;
+			SetExp(exp);
 		}
 		//emit this->UpdateInfo(NOTIFY_CHARDETAIL);
 		//updataPcAct();
-		if ((pc->status & CHR_STATUS_LEADER) != 0 && party.at(0).useFlag != 0)
+		PARTY party = GetParty(0);
+		if ((pc->status & CHR_STATUS_LEADER) != 0 && party.useFlag != 0)
 		{
-			party[0].level = pc->level;
-			party[0].maxHp = pc->maxhp;
-			party[0].hp = pc->hp;
-			party[0].name = pc->name;
+			party.level = pc->level;
+			party.maxHp = pc->maxhp;
+			party.hp = pc->hp;
+			party.name = pc->name;
+			SetParty(0, party);
 		}
 
 		//if (!bNewServer)
@@ -2087,128 +1854,134 @@ void GameService::lssproto_S_recv(int fd, char* data)
 	}
 	case 'F':
 	{
-		char familyName[256] = {};
+		QString familyName;
 
-		data++;
-		getStringToken(data, S_DELIM, 1, sizeof(familyName) - 1, familyName);
-		makeStringFromEscaped(familyName);
-		if (strlen(familyName) <= CHAR_NAME_LEN)
-			pc->familyName = toUnicode(familyName);
-		pc->familyleader = getIntegerToken(data, S_DELIM, 2);
-		pc->channel = getIntegerToken(data, S_DELIM, 3);
-		pc->familySprite = getIntegerToken(data, S_DELIM, 4);
-		pc->big4fm = getIntegerToken(data, S_DELIM, 5);
+		cdata++;
+		QString data = toUnicode(cdata);
+		util.getStringToken(data, S_DELIM, 1, familyName);
+		util.makeStringFromEscaped(familyName);
+		pc->familyName = familyName;
+		pc->familyleader = util.getIntegerToken(data, S_DELIM, 2);
+		pc->channel = util.getIntegerToken(data, S_DELIM, 3);
+		pc->familySprite = util.getIntegerToken(data, S_DELIM, 4);
+		pc->big4fm = util.getIntegerToken(data, S_DELIM, 5);
 #ifdef _CHANNEL_MODIFY
 		if (pc->familyleader == FMMEMBER_NONE) {
 			pc->etcFlag &= ~PC_ETCFLAG_CHAT_FM;
 			TalkMode = 0;
 		}
 #endif
+		SetCharData(*pc);
 		break;
 	}
 	// HP,MP,EXP
 	case 'M':
 	{
-		data++;
-		pc->hp = getIntegerToken(data, '|', 1);
-		pc->mp = getIntegerToken(data, '|', 2);
-		pc->exp = getIntegerToken(data, '|', 3);
+		cdata++;
+		QString data = toUnicode(cdata);
+		pc->hp = util.getIntegerToken(data, S_DELIM, 1);
+		pc->mp = util.getIntegerToken(data, S_DELIM, 2);
+		pc->exp = util.getIntegerToken(data, S_DELIM, 3);
+		EXP exp = GetExp();
 		exp.left = pc->maxExp - pc->exp;
+		SetExp(exp);
 		//updataPcAct();
-		if ((pc->status & CHR_STATUS_LEADER) != 0 && party.at(0).useFlag != 0)
-			party[0].hp = pc->hp;
+		PARTY party = GetParty(0);
+		if ((pc->status & CHR_STATUS_LEADER) != 0 && party.useFlag != 0)
+		{
+			party.hp = pc->hp;
+			SetParty(0, party);
+		}
+		SetCharData(*pc);
 		break;
 	}
 	case 'K':
 	{
-		char name[256] = {}, freeName[256] = {};
+		QString name, freeName;
 		int no = 0, kubun = 0, i = 0;
 		unsigned int mask = 0u;
 
-		no = data[1] - '0';
+		no = cdata[1] - '0';
 		if (no < MAX_PET)
 		{
-			data += 3;
-			kubun = getInteger62Token(data, S_DELIM, 1);
-			//g_cont->info(L"W({}) kunun:{} MSG:{}", no, kubun, toUnicode(data).toStdWString());
+			cdata += 3;
+			QString data = toUnicode(cdata);
+			kubun = util.getInteger62Token(data, S_DELIM, 1);
+
+			PET pet = GetPet(no);
 			if (kubun == 0)
 			{
-
-				if (pet.at(no).useFlag)
+				if (pet.useFlag)
 				{
 					if (no == pc->battlePetNo)
 						pc->battlePetNo = -1;
 					if (no == pc->mailPetNo)
 						pc->mailPetNo = -1;
 					pc->selectPetNo[no] = FALSE;
+					SetCharData(*pc);
 				}
-				pet[no].useFlag = 0;
-
-				break;
+				pet.useFlag = 0;
 			}
-			else {
-				pet[no].useFlag = 1;
+			else
+			{
+				pet.useFlag = 1;
 				if (kubun == 1)
 				{
 
-					pet[no].graNo = getIntegerToken(data, S_DELIM, 2);		// 0x00000002
-					pet[no].hp = getIntegerToken(data, S_DELIM, 3);		// 0x00000004
-					pet[no].maxHp = getIntegerToken(data, S_DELIM, 4);		// 0x00000008
-					pet[no].mp = getIntegerToken(data, S_DELIM, 5);		// 0x00000010
-					pet[no].maxMp = getIntegerToken(data, S_DELIM, 6);		// 0x00000020
-					pet[no].exp = getIntegerToken(data, S_DELIM, 7);		// 0x00000040
-					pet[no].maxExp = getIntegerToken(data, S_DELIM, 8);		// 0x00000080
-					pet[no].level = getIntegerToken(data, S_DELIM, 9);		// 0x00000100
-					pet[no].atk = getIntegerToken(data, S_DELIM, 10);		// 0x00000200
-					pet[no].def = getIntegerToken(data, S_DELIM, 11);		// 0x00000400
-					pet[no].quick = getIntegerToken(data, S_DELIM, 12);		// 0x00000800
-					pet[no].ai = getIntegerToken(data, S_DELIM, 13);		// 0x00001000
-					pet[no].earth = getIntegerToken(data, S_DELIM, 14);		// 0x00002000
-					pet[no].water = getIntegerToken(data, S_DELIM, 15);		// 0x00004000
-					pet[no].fire = getIntegerToken(data, S_DELIM, 16);		// 0x00008000
-					pet[no].wind = getIntegerToken(data, S_DELIM, 17);		// 0x00010000
-					pet[no].maxSkill = getIntegerToken(data, S_DELIM, 18);		// 0x00020000
-					pet[no].changeNameFlag = getIntegerToken(data, S_DELIM, 19);// 0x00040000
-					pet[no].trn = getIntegerToken(data, S_DELIM, 20);
+					pet.graNo = util.getIntegerToken(data, S_DELIM, 2);		// 0x00000002
+					pet.hp = util.getIntegerToken(data, S_DELIM, 3);		// 0x00000004
+					pet.maxHp = util.getIntegerToken(data, S_DELIM, 4);		// 0x00000008
+					pet.mp = util.getIntegerToken(data, S_DELIM, 5);		// 0x00000010
+					pet.maxMp = util.getIntegerToken(data, S_DELIM, 6);		// 0x00000020
+					pet.exp = util.getIntegerToken(data, S_DELIM, 7);		// 0x00000040
+					pet.maxExp = util.getIntegerToken(data, S_DELIM, 8);		// 0x00000080
+					pet.level = util.getIntegerToken(data, S_DELIM, 9);		// 0x00000100
+					pet.atk = util.getIntegerToken(data, S_DELIM, 10);		// 0x00000200
+					pet.def = util.getIntegerToken(data, S_DELIM, 11);		// 0x00000400
+					pet.quick = util.getIntegerToken(data, S_DELIM, 12);		// 0x00000800
+					pet.ai = util.getIntegerToken(data, S_DELIM, 13);		// 0x00001000
+					pet.earth = util.getIntegerToken(data, S_DELIM, 14);		// 0x00002000
+					pet.water = util.getIntegerToken(data, S_DELIM, 15);		// 0x00004000
+					pet.fire = util.getIntegerToken(data, S_DELIM, 16);		// 0x00008000
+					pet.wind = util.getIntegerToken(data, S_DELIM, 17);		// 0x00010000
+					pet.maxSkill = util.getIntegerToken(data, S_DELIM, 18);		// 0x00020000
+					pet.changeNameFlag = util.getIntegerToken(data, S_DELIM, 19);// 0x00040000
+					pet.trn = util.getIntegerToken(data, S_DELIM, 20);
 #ifdef _SHOW_FUSION
-					pet[no].fusion = getIntegerToken(data, S_DELIM, 21);
-					getStringToken(data, S_DELIM, 22, sizeof(name) - 1, name);// 0x00080000
-					makeStringFromEscaped(name);
-					if (strlen(name) <= PET_NAME_LEN)
-						pet[no].name = toUnicode(name);
-					getStringToken(data, S_DELIM, 23, sizeof(freeName) - 1, freeName);// 0x00100000
-					makeStringFromEscaped(freeName);
-					if (strlen(freeName) <= PET_NAME_LEN)
-						pet[no].freeName = toUnicode(freeName);
+					pet.fusion = util.getIntegerToken(data, S_DELIM, 21);
+					util.getStringToken(data, S_DELIM, 22, name);// 0x00080000
+					util.makeStringFromEscaped(name);
+					pet.name = name;
+					util.getStringToken(data, S_DELIM, 23, freeName);// 0x00100000
+					util.makeStringFromEscaped(freeName);
+					pet.freeName = freeName;
 #else
-					getStringToken(data, S_DELIM, 21, sizeof(name) - 1, name);// 0x00080000
-					makeStringFromEscaped(name);
+					util.getStringToken(data, S_DELIM, 21, sizeof(name) - 1, name);// 0x00080000
+					util.makeStringFromEscaped(name);
 					if (strlen(name) <= PET_NAME_LEN)
 						pet[no].name = toUnicode(name);
-					getStringToken(data, S_DELIM, 22, sizeof(freeName) - 1, freeName);// 0x00100000
-					makeStringFromEscaped(freeName);
+					util.getStringToken(data, S_DELIM, 22, sizeof(freeName) - 1, freeName);// 0x00100000
+					util.makeStringFromEscaped(freeName);
 					if (strlen(freeName) <= PET_NAME_LEN)
 						pet[no].freeName = toUnicode(freeName);
 #endif
 #ifdef _PETCOM_
-					pet[no].oldhp = getIntegerToken(data, S_DELIM, 24);
-					pet[no].oldatk = getIntegerToken(data, S_DELIM, 25);
-					pet[no].olddef = getIntegerToken(data, S_DELIM, 26);
-					pet[no].oldquick = getIntegerToken(data, S_DELIM, 27);
-					pet[no].oldlevel = getIntegerToken(data, S_DELIM, 28);
+					pet[no].oldhp = util.getIntegerToken(data, S_DELIM, 24);
+					pet[no].oldatk = util.getIntegerToken(data, S_DELIM, 25);
+					pet[no].olddef = util.getIntegerToken(data, S_DELIM, 26);
+					pet[no].oldquick = util.getIntegerToken(data, S_DELIM, 27);
+					pet[no].oldlevel = util.getIntegerToken(data, S_DELIM, 28);
 #endif
 #ifdef _RIDEPET_
-					pet[no].rideflg = getIntegerToken(data, S_DELIM, 29);
+					pet[no].rideflg = util.getIntegerToken(data, S_DELIM, 29);
 #endif
 #ifdef _PETBLESS_
-					pet[no].blessflg = getIntegerToken(data, S_DELIM, 30);
-					pet[no].blesshp = getIntegerToken(data, S_DELIM, 31);
-					pet[no].blessatk = getIntegerToken(data, S_DELIM, 32);
-					pet[no].blessdef = getIntegerToken(data, S_DELIM, 33);
-					pet[no].blessquick = getIntegerToken(data, S_DELIM, 34);
+					pet[no].blessflg = util.getIntegerToken(data, S_DELIM, 30);
+					pet[no].blesshp = util.getIntegerToken(data, S_DELIM, 31);
+					pet[no].blessatk = util.getIntegerToken(data, S_DELIM, 32);
+					pet[no].blessdef = util.getIntegerToken(data, S_DELIM, 33);
+					pet[no].blessquick = util.getIntegerToken(data, S_DELIM, 34);
 #endif
-
-					AutoUseMagicForPetInNormal(pet);
 
 				}
 				else
@@ -2221,211 +1994,214 @@ void GameService::lssproto_S_recv(int fd, char* data)
 						{
 							if (mask == 0x00000002)
 							{
-								pet[no].graNo = getIntegerToken(data, S_DELIM, i);// 0x00000002
+								pet.graNo = util.getIntegerToken(data, S_DELIM, i);// 0x00000002
 								i++;
 							}
 							else if (mask == 0x00000004)
 							{
-								pet[no].hp = getIntegerToken(data, S_DELIM, i);// 0x00000004
+								pet.hp = util.getIntegerToken(data, S_DELIM, i);// 0x00000004
 								i++;
 							}
 							else if (mask == 0x00000008)
 							{
-								pet[no].maxHp = getIntegerToken(data, S_DELIM, i);// 0x00000008
+								pet.maxHp = util.getIntegerToken(data, S_DELIM, i);// 0x00000008
 								i++;
 							}
 							else if (mask == 0x00000010)
 							{
-								pet[no].mp = getIntegerToken(data, S_DELIM, i);// 0x00000010
+								pet.mp = util.getIntegerToken(data, S_DELIM, i);// 0x00000010
 								i++;
 							}
 							else if (mask == 0x00000020)
 							{
-								pet[no].maxMp = getIntegerToken(data, S_DELIM, i);// 0x00000020
+								pet.maxMp = util.getIntegerToken(data, S_DELIM, i);// 0x00000020
 								i++;
 							}
 							else if (mask == 0x00000040)
 							{
-								pet[no].exp = getIntegerToken(data, S_DELIM, i);// 0x00000040
+								pet.exp = util.getIntegerToken(data, S_DELIM, i);// 0x00000040
 								i++;
 							}
 							else if (mask == 0x00000080)
 							{
-								pet[no].maxExp = getIntegerToken(data, S_DELIM, i);// 0x00000080
+								pet.maxExp = util.getIntegerToken(data, S_DELIM, i);// 0x00000080
 								i++;
 							}
 							else if (mask == 0x00000100)
 							{
-								pet[no].level = getIntegerToken(data, S_DELIM, i);// 0x00000100
+								pet.level = util.getIntegerToken(data, S_DELIM, i);// 0x00000100
 								i++;
 							}
 							else if (mask == 0x00000200)
 							{
-								pet[no].atk = getIntegerToken(data, S_DELIM, i);// 0x00000200
+								pet.atk = util.getIntegerToken(data, S_DELIM, i);// 0x00000200
 								i++;
 							}
 							else if (mask == 0x00000400)
 							{
-								pet[no].def = getIntegerToken(data, S_DELIM, i);// 0x00000400
+								pet.def = util.getIntegerToken(data, S_DELIM, i);// 0x00000400
 								i++;
 							}
 							else if (mask == 0x00000800)
 							{
-								pet[no].quick = getIntegerToken(data, S_DELIM, i);// 0x00000800
+								pet.quick = util.getIntegerToken(data, S_DELIM, i);// 0x00000800
 								i++;
 							}
 							else if (mask == 0x00001000)
 							{
-								pet[no].ai = getIntegerToken(data, S_DELIM, i);// 0x00001000
+								pet.ai = util.getIntegerToken(data, S_DELIM, i);// 0x00001000
 								i++;
 							}
 							else if (mask == 0x00002000)
 							{
-								pet[no].earth = getIntegerToken(data, S_DELIM, i);// 0x00002000
+								pet.earth = util.getIntegerToken(data, S_DELIM, i);// 0x00002000
 								i++;
 							}
 							else if (mask == 0x00004000)
 							{
-								pet[no].water = getIntegerToken(data, S_DELIM, i);// 0x00004000
+								pet.water = util.getIntegerToken(data, S_DELIM, i);// 0x00004000
 								i++;
 							}
 							else if (mask == 0x00008000)
 							{
-								pet[no].fire = getIntegerToken(data, S_DELIM, i);// 0x00008000
+								pet.fire = util.getIntegerToken(data, S_DELIM, i);// 0x00008000
 								i++;
 							}
 							else if (mask == 0x00010000)
 							{
-								pet[no].wind = getIntegerToken(data, S_DELIM, i);// 0x00010000
+								pet.wind = util.getIntegerToken(data, S_DELIM, i);// 0x00010000
 								i++;
 							}
 							else if (mask == 0x00020000)
 							{
-								pet[no].maxSkill = getIntegerToken(data, S_DELIM, i);// 0x00020000
+								pet.maxSkill = util.getIntegerToken(data, S_DELIM, i);// 0x00020000
 								i++;
 							}
 							else if (mask == 0x00040000)
 							{
-								pet[no].changeNameFlag = getIntegerToken(data, S_DELIM, i);// 0x00040000
+								pet.changeNameFlag = util.getIntegerToken(data, S_DELIM, i);// 0x00040000
 								i++;
 							}
 							else if (mask == 0x00080000)
 							{
-								getStringToken(data, S_DELIM, i, sizeof(name) - 1, name);// 0x00080000
-								makeStringFromEscaped(name);
-								if (strlen(name) <= PET_NAME_LEN)
-									pet[no].name = toUnicode(name);
+								util.getStringToken(data, S_DELIM, i, name);// 0x00080000
+								util.makeStringFromEscaped(name);
+								pet.name = name;
 								i++;
 							}
 							else if (mask == 0x00100000)
 							{
-								getStringToken(data, S_DELIM, i, sizeof(freeName) - 1, freeName);// 0x00100000
-								makeStringFromEscaped(freeName);
-								if (strlen(freeName) <= PET_NAME_LEN)
-									pet[no].freeName = toUnicode(freeName);
+								util.getStringToken(data, S_DELIM, i, freeName);// 0x00100000
+								util.makeStringFromEscaped(freeName);
+								pet.freeName = freeName;
 								i++;
 							}
 #ifdef _PETCOM_
 							else if (mask == 0x200000)
 							{
-								pet[no].oldhp = getIntegerToken(data, S_DELIM, i);
+								pet[no].oldhp = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x400000)
 							{
-								pet[no].oldatk = getIntegerToken(data, S_DELIM, i);
+								pet[no].oldatk = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x800000)
 							{
-								pet[no].olddef = getIntegerToken(data, S_DELIM, i);
+								pet[no].olddef = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x1000000)
 							{
-								pet[no].oldquick = getIntegerToken(data, S_DELIM, i);
+								pet[no].oldquick = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x2000000)
 							{
-								pet[no].oldlevel = getIntegerToken(data, S_DELIM, i);
+								pet[no].oldlevel = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 #endif
 #ifdef _PETBLESS_
 							else if (mask == 0x4000000)
 							{
-								pet[no].blessflg = getIntegerToken(data, S_DELIM, i);
+								pet[no].blessflg = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x8000000)
 							{
-								pet[no].blesshp = getIntegerToken(data, S_DELIM, i);
+								pet[no].blesshp = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x10000000)
 							{
-								pet[no].blessatk = getIntegerToken(data, S_DELIM, i);
+								pet[no].blessatk = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x20000000)
 							{
-								pet[no].blessquick = getIntegerToken(data, S_DELIM, i);
+								pet[no].blessquick = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 							else if (mask == 0x40000000)
 							{
-								pet[no].blessdef = getIntegerToken(data, S_DELIM, i);
+								pet[no].blessdef = util.getIntegerToken(data, S_DELIM, i);
 								i++;
 							}
 #endif
 						}
 					}
 				}
+
 			}
+			SetPet(no, pet);
+			AutoUseMagicForPetInNormal(no, pet);
 			//emit this->UpdateInfo(NOTIFY_PETDETAIL);
 		}
 		break;
 	}
 	case 'E':
 	{
-		data++;
-		//minEncountPercentage = getIntegerToken(data, S_DELIM, 1);
-		//maxEncountPercentage = getIntegerToken(data, S_DELIM, 2);
+		cdata++;
+		//minEncountPercentage = util.getIntegerToken(data, S_DELIM, 1);
+		//maxEncountPercentage = util.getIntegerToken(data, S_DELIM, 2);
 		//nowEncountPercentage = minEncountPercentage;
 		break;
 	}
 	case 'J':
 	{
-		char name[256] = {}, memo[256] = {};
+		QString name, memo;
 		int no = 0;
 
-		no = data[1] - '0';
+		no = cdata[1] - '0';
 		if (no < MAX_MAGIC)
 		{
 
-			data += 3;
-
-			magic[no].useFlag = getIntegerToken(data, S_DELIM, 1);
-			if (magic[no].useFlag != 0)
+			cdata += 3;
+			QString data = toUnicode(cdata);
+			MAGIC magic = GetMagic(no);
+			magic.useFlag = util.getIntegerToken(data, S_DELIM, 1);
+			if (magic.useFlag != 0)
 			{
-				magic[no].mp = getIntegerToken(data, S_DELIM, 2);
-				magic[no].field = getIntegerToken(data, S_DELIM, 3);
-				magic[no].target = getIntegerToken(data, S_DELIM, 4);
-				if (magic[no].target >= 100)
+				magic.mp = util.getIntegerToken(data, S_DELIM, 2);
+				magic.field = util.getIntegerToken(data, S_DELIM, 3);
+				magic.target = util.getIntegerToken(data, S_DELIM, 4);
+				if (magic.target >= 100)
 				{
-					magic[no].target %= 100;
-					magic[no].deadTargetFlag = 1;
+					magic.target %= 100;
+					magic.deadTargetFlag = 1;
 				}
 				else
-					magic[no].deadTargetFlag = 0;
-				getStringToken(data, S_DELIM, 5, sizeof(name) - 1, name);
-				makeStringFromEscaped(name);
-				magic[no].name = toUnicode(name);
-				getStringToken(data, S_DELIM, 6, sizeof(memo) - 1, memo);
-				makeStringFromEscaped(memo);
-				magic[no].memo = toUnicode(memo);
+					magic.deadTargetFlag = 0;
+				util.getStringToken(data, S_DELIM, 5, name);
+				util.makeStringFromEscaped(name);
+				magic.name = name;
+				util.getStringToken(data, S_DELIM, 6, memo);
+				util.makeStringFromEscaped(memo);
+				magic.memo = memo;
 			}
+			SetMagic(no, magic);
 		}
 		break;
 	}
@@ -2439,7 +2215,7 @@ void GameService::lssproto_S_recv(int fd, char* data)
 
 		no = data[1] - 48;
 		data += 3;
-		kubun = getInteger62Token(data, S_DELIM, 1);
+		kubun = util.getInteger62Token(data, S_DELIM, 1);
 		if (kubun == 0)
 		{
 			if (party[no].useFlag != 0 && party[no].id != pc->id)
@@ -2495,13 +2271,13 @@ void GameService::lssproto_S_recv(int fd, char* data)
 
 		if (kubun == 1)
 		{
-			party[no].id = getIntegerToken(data, S_DELIM, 2);	// 0x00000002
-			party[no].level = getIntegerToken(data, S_DELIM, 3);	// 0x00000004
-			party[no].maxHp = getIntegerToken(data, S_DELIM, 4);	// 0x00000008
-			party[no].hp = getIntegerToken(data, S_DELIM, 5);	// 0x00000010
-			party[no].mp = getIntegerToken(data, S_DELIM, 6);	// 0x00000020
-			getStringToken(data, S_DELIM, 7, sizeof(name) - 1, name);	// 0x00000040
-			makeStringFromEscaped(name);
+			party[no].id = util.getIntegerToken(data, S_DELIM, 2);	// 0x00000002
+			party[no].level = util.getIntegerToken(data, S_DELIM, 3);	// 0x00000004
+			party[no].maxHp = util.getIntegerToken(data, S_DELIM, 4);	// 0x00000008
+			party[no].hp = util.getIntegerToken(data, S_DELIM, 5);	// 0x00000010
+			party[no].mp = util.getIntegerToken(data, S_DELIM, 6);	// 0x00000020
+			util.getStringToken(data, S_DELIM, 7, sizeof(name) - 1, name);	// 0x00000040
+			util.makeStringFromEscaped(name);
 			if (strlen(name) <= sizeof(party[no].name) - 1)
 				party[no].name = toUnicode(name);
 			else
@@ -2517,33 +2293,33 @@ void GameService::lssproto_S_recv(int fd, char* data)
 				{
 					if (mask == 0x00000002)
 					{
-						party[no].id = getIntegerToken(data, S_DELIM, i);// 0x00000002
+						party[no].id = util.getIntegerToken(data, S_DELIM, i);// 0x00000002
 						i++;
 					}
 					else if (mask == 0x00000004)
 					{
-						party[no].level = getIntegerToken(data, S_DELIM, i);// 0x00000004
+						party[no].level = util.getIntegerToken(data, S_DELIM, i);// 0x00000004
 						i++;
 					}
 					else if (mask == 0x00000008)
 					{
-						party[no].maxHp = getIntegerToken(data, S_DELIM, i);// 0x00000008
+						party[no].maxHp = util.getIntegerToken(data, S_DELIM, i);// 0x00000008
 						i++;
 					}
 					else if (mask == 0x00000010)
 					{
-						party[no].hp = getIntegerToken(data, S_DELIM, i);// 0x00000010
+						party[no].hp = util.getIntegerToken(data, S_DELIM, i);// 0x00000010
 						i++;
 					}
 					else if (mask == 0x00000020)
 					{
-						party[no].mp = getIntegerToken(data, S_DELIM, i);// 0x00000020
+						party[no].mp = util.getIntegerToken(data, S_DELIM, i);// 0x00000020
 						i++;
 					}
 					else if (mask == 0x00000040)
 					{
-						getStringToken(data, S_DELIM, i, sizeof(name) - 1, name);// 0x00000040
-						makeStringFromEscaped(name);
+						util.getStringToken(data, S_DELIM, i, sizeof(name) - 1, name);// 0x00000040
+						util.makeStringFromEscaped(name);
 						if (strlen(name) <= sizeof(party[no].name) - 1)
 							party[no].name = toUnicode(name);
 						else
@@ -2581,9 +2357,10 @@ void GameService::lssproto_S_recv(int fd, char* data)
 	case 'I':
 	{
 		int i = 0, no = 0;
-		char temp[256] = {};
+		QString temp;
 
-		data++;
+		cdata++;
+		QString data = toUnicode(cdata);
 		for (i = 0; i < MAX_ITEM; i++)
 		{
 #ifdef _ITEM_JIGSAW
@@ -2617,28 +2394,27 @@ void GameService::lssproto_S_recv(int fd, char* data)
 #endif//_ITEM_PILENUMS
 #endif//_PET_ITEM
 #endif//_ITEM_JIGSAW
-			getStringToken(data, '|', no + 1, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			if (strlen(temp) == 0)
+			util.getStringToken(data, S_DELIM, no + 1, temp);
+			util.makeStringFromEscaped(temp);
+			if (temp.isEmpty())
 			{
 				pc->item[i].useFlag = 0;
 				continue;
 			}
 			pc->item[i].useFlag = 1;
-			pc->item[i].name = toUnicode(temp);
-			getStringToken(data, '|', no + 2, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			pc->item[i].name2 = toUnicode(temp);
-			pc->item[i].color = getIntegerToken(data, '|', no + 3);
+			pc->item[i].name = temp;
+			util.getStringToken(data, S_DELIM, no + 2, temp);
+			util.makeStringFromEscaped(temp);
+			pc->item[i].name2 = temp;
+			pc->item[i].color = util.getIntegerToken(data, S_DELIM, no + 3);
 			if (pc->item[i].color < 0)
 				pc->item[i].color = 0;
-			getStringToken(data, '|', no + 4, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			if (strlen(temp) <= ITEM_MEMO_LEN)
-				pc->item[i].memo = toUnicode(temp);
-			pc->item[i].graNo = getIntegerToken(data, '|', no + 5);
-			pc->item[i].field = getIntegerToken(data, '|', no + 6);
-			pc->item[i].target = getIntegerToken(data, '|', no + 7);
+			util.getStringToken(data, S_DELIM, no + 4, temp);
+			util.makeStringFromEscaped(temp);
+			pc->item[i].memo = temp;
+			pc->item[i].graNo = util.getIntegerToken(data, S_DELIM, no + 5);
+			pc->item[i].field = util.getIntegerToken(data, S_DELIM, no + 6);
+			pc->item[i].target = util.getIntegerToken(data, S_DELIM, no + 7);
 			if (pc->item[i].target >= 100)
 			{
 				pc->item[i].target %= 100;
@@ -2646,42 +2422,40 @@ void GameService::lssproto_S_recv(int fd, char* data)
 			}
 			else
 				pc->item[i].deadTargetFlag = 0;
-			pc->item[i].level = getIntegerToken(data, '|', no + 8);
-			pc->item[i].sendFlag = getIntegerToken(data, '|', no + 9);
+			pc->item[i].level = util.getIntegerToken(data, S_DELIM, no + 8);
+			pc->item[i].sendFlag = util.getIntegerToken(data, S_DELIM, no + 9);
 
 			// 顯示物品耐久度
-			getStringToken(data, '|', no + 10, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			if (strlen(temp) <= 16)
-				pc->item[i].damage = toUnicode(temp);
+			util.getStringToken(data, S_DELIM, no + 10, temp);
+			util.makeStringFromEscaped(temp);
+			pc->item[i].damage = temp;
 
 #ifdef _ITEM_PILENUMS
-			getStringToken(data, '|', no + 11, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			pc->item[i].pile = atoi(temp);
+			util.getStringToken(data, S_DELIM, no + 11, temp);
+			util.makeStringFromEscaped(temp);
+			pc->item[i].pile = util.safe_atoi(temp);
 #endif
 #ifdef _ALCHEMIST //_ITEMSET7_TXT
-			getStringToken(data, '|', no + 12, sizeof(temp) - 1, temp);
-			makeStringFromEscaped(temp);
-			pc->item[i].alch = toUnicode(temp);
+			util.getStringToken(data, S_DELIM, no + 12, temp);
+			util.makeStringFromEscaped(temp);
+			pc->item[i].alch = temp;
 #endif
 #ifdef _PET_ITEM
-			pc->item[i].type = getIntegerToken(data, '|', no + 13);
+			pc->item[i].type = util.getIntegerToken(data, S_DELIM, no + 13);
 #else
 #ifdef _MAGIC_ITEM_
-			pc->item[i].道具類型 = getIntegerToken(data, '|', no + 13);
+			pc->item[i].道具類型 = util.getIntegerToken(data, '|', no + 13);
 #endif
 #endif
 #ifdef _ITEM_JIGSAW
-			getStringToken(data, '|', no + 14, sizeof(temp) - 1, temp);
-			if (strlen(temp) <= 10)
-				pc->item[i].jigsaw = toUnicode(temp);
+			util.getStringToken(data, S_DELIM, no + 14, temp);
+			pc->item[i].jigsaw = temp;
 #endif
 #ifdef _NPC_ITEMUP
-			pc->item[i].itemup = getIntegerToken(data, '|', no + 15);
+			pc->item[i].itemup = util.getIntegerToken(data, S_DELIM, no + 15);
 #endif
 #ifdef _ITEM_COUNTDOWN
-			pc->item[i].counttime = getIntegerToken(data, '|', no + 16);
+			pc->item[i].counttime = util.getIntegerToken(data, S_DELIM, no + 16);
 #endif
 
 			//吃掉全部肉
@@ -2689,42 +2463,39 @@ void GameService::lssproto_S_recv(int fd, char* data)
 			AutoEatMeat(*pc);
 
 		}
-
+		SetCharData(*pc);
 		break;
 	}
 	//接收到的寵物技能
 	case 'W':
 	{
 		int i = 0, no = 0, no2 = 0;
-		char temp[256] = {};
+		QString temp;
 
-		no = data[1] - '0';
+		no = cdata[1] - '0';
+		QString data = toUnicode(cdata);
 		if (no < MAX_PET)
 		{
+			QVector<PET_SKILL> petskill(MAX_SKILL);
 			data += 3;
 			for (i = 0; i < MAX_SKILL; i++)
-				m_petSkill[no][i].useFlag = 0;
+				petskill[i].useFlag = 0;
 			for (i = 0; i < MAX_SKILL; i++)
 			{
 				no2 = i * 5;
-				getStringToken(data, '|', no2 + 4, sizeof(temp) - 1, temp);
-				makeStringFromEscaped(temp);
-				if (strlen(temp) == 0)
+				util.getStringToken(data, S_DELIM, no2 + 4, temp);
+				util.makeStringFromEscaped(temp);
+				if (temp.isEmpty())
 					continue;
-				m_petSkill[no][i].useFlag = 1;
-				if (strlen(temp) <= SKILL_NAME_LEN)
-					m_petSkill[no][i].name = toUnicode(temp);
-				else
-					m_petSkill[no][i].name = "??? name ???";
-				m_petSkill[no][i].skillId = getIntegerToken(data, '|', no2 + 1);
-				m_petSkill[no][i].field = getIntegerToken(data, '|', no2 + 2);
-				m_petSkill[no][i].target = getIntegerToken(data, '|', no2 + 3);
-				getStringToken(data, '|', no2 + 5, sizeof(temp) - 1, temp);
-				makeStringFromEscaped(temp);
-				if (strlen(temp) <= SKILL_MEMO_LEN)
-					m_petSkill[no][i].memo = toUnicode(temp);
-				else
-					m_petSkill[no][i].memo = "??? memo ???";
+				petskill[i].useFlag = 1;
+				petskill[i].name = temp;
+				petskill[i].skillId = util.getIntegerToken(data, S_DELIM, no2 + 1);
+				petskill[i].field = util.getIntegerToken(data, S_DELIM, no2 + 2);
+				petskill[i].target = util.getIntegerToken(data, S_DELIM, no2 + 3);
+				util.getStringToken(data, S_DELIM, no2 + 5, temp);
+				util.makeStringFromEscaped(temp);
+				petskill[i].memo = temp;
+				SetPetSkills(no, petskill);
 			}
 		}
 	}
@@ -2745,21 +2516,21 @@ void GameService::lssproto_S_recv(int fd, char* data)
 		for (i = 0; i < MAX_PROFESSION_SKILL; i++)
 		{
 			count = i * 9;
-			profession_skill[i].useFlag = getIntegerToken(data, S_DELIM, 1 + count);
-			profession_skill[i].skillId = getIntegerToken(data, S_DELIM, 2 + count);
-			profession_skill[i].target = getIntegerToken(data, S_DELIM, 3 + count);
-			profession_skill[i].kind = getIntegerToken(data, S_DELIM, 4 + count);
-			profession_skill[i].icon = getIntegerToken(data, S_DELIM, 5 + count);
-			profession_skill[i].costmp = getIntegerToken(data, S_DELIM, 6 + count);
-			profession_skill[i].skill_level = getIntegerToken(data, S_DELIM, 7 + count);
+			profession_skill[i].useFlag = util.getIntegerToken(data, S_DELIM, 1 + count);
+			profession_skill[i].skillId = util.getIntegerToken(data, S_DELIM, 2 + count);
+			profession_skill[i].target = util.getIntegerToken(data, S_DELIM, 3 + count);
+			profession_skill[i].kind = util.getIntegerToken(data, S_DELIM, 4 + count);
+			profession_skill[i].icon = util.getIntegerToken(data, S_DELIM, 5 + count);
+			profession_skill[i].costmp = util.getIntegerToken(data, S_DELIM, 6 + count);
+			profession_skill[i].skill_level = util.getIntegerToken(data, S_DELIM, 7 + count);
 			memset(name, 0, sizeof(name));
-			getStringToken(data, S_DELIM, 8 + count, sizeof(name) - 1, name);
-			makeStringFromEscaped(name);
+			util.getStringToken(data, S_DELIM, 8 + count, sizeof(name) - 1, name);
+			util.makeStringFromEscaped(name);
 			if (strlen(name) <= CHAR_NAME_LEN)
 				strcpy(profession_skill[i].name, name);
 			memset(memo, 0, sizeof(memo));
-			getStringToken(data, S_DELIM, 9 + count, sizeof(memo) - 1, memo);
-			makeStringFromEscaped(memo);
+			util.getStringToken(data, S_DELIM, 9 + count, sizeof(memo) - 1, memo);
+			util.makeStringFromEscaped(memo);
 			if (strlen(memo) <= PROFESSION_MEMO_LEN)
 				strcpy(profession_skill[i].memo, memo);
 		}
@@ -2779,7 +2550,7 @@ void GameService::lssproto_S_recv(int fd, char* data)
 		for (i = 0; i < MAX_PROFESSION_SKILL; i++)
 		{
 			count = i * 1;
-			profession_skill[i].cooltime = getIntegerToken(data, S_DELIM, 1 + count);
+			profession_skill[i].cooltime = util.getIntegerToken(data, S_DELIM, 1 + count);
 		}
 	}
 	break;
@@ -2788,10 +2559,12 @@ void GameService::lssproto_S_recv(int fd, char* data)
 	case 'B':
 	{
 		int i = 0, no = 0, nPetIndex = 0;
-		char szData[256] = {};
+		QString szData;
 
-		nPetIndex = data[1] - '0';
-		data += 2;
+		nPetIndex = cdata[1] - '0';
+		cdata += 2;
+		QString data = toUnicode(cdata);
+		PET pet = GetPet(nPetIndex);
 		for (i = 0; i < MAX_PET_ITEM; i++)
 		{
 #ifdef _ITEM_JIGSAW
@@ -2807,78 +2580,72 @@ void GameService::lssproto_S_recv(int fd, char* data)
 #else
 			no = i * 13;
 #endif
-			getStringToken(data, '|', no + 1, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			if (strlen(szData) == 0)	// 沒道具
+			util.getStringToken(data, S_DELIM, no + 1, szData);
+			util.makeStringFromEscaped(szData);
+			if (szData.isEmpty())	// 沒道具
 			{
-				pet[nPetIndex].item[i] = {};
+				pet.item[i] = {};
 				continue;
 			}
-			pet[nPetIndex].item[i].useFlag = 1;
-			if (strlen(szData) <= ITEM_NAME_LEN)
-				pet[nPetIndex].item[i].name = toUnicode(szData);
-			getStringToken(data, '|', no + 2, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			if (strlen(szData) <= ITEM_NAME2_LEN)
-				pet[nPetIndex].item[i].name2 = toUnicode(szData);
-			pet[nPetIndex].item[i].color = getIntegerToken(data, '|', no + 3);
-			if (pet[nPetIndex].item[i].color < 0)
-				pet[nPetIndex].item[i].color = 0;
-			getStringToken(data, '|', no + 4, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			if (strlen(szData) <= ITEM_MEMO_LEN)
-				pet[nPetIndex].item[i].memo = toUnicode(szData);
-			pet[nPetIndex].item[i].graNo = getIntegerToken(data, '|', no + 5);
-			pet[nPetIndex].item[i].field = getIntegerToken(data, '|', no + 6);
-			pet[nPetIndex].item[i].target = getIntegerToken(data, '|', no + 7);
-			if (pet[nPetIndex].item[i].target >= 100)
+			pet.item[i].useFlag = 1;
+			pet.item[i].name = szData;
+			util.getStringToken(data, S_DELIM, no + 2, szData);
+			util.makeStringFromEscaped(szData);
+			pet.item[i].name2 = szData;
+			pet.item[i].color = util.getIntegerToken(data, S_DELIM, no + 3);
+			if (pet.item[i].color < 0)
+				pet.item[i].color = 0;
+			util.getStringToken(data, S_DELIM, no + 4, szData);
+			util.makeStringFromEscaped(szData);
+			pet.item[i].memo = szData;
+			pet.item[i].graNo = util.getIntegerToken(data, S_DELIM, no + 5);
+			pet.item[i].field = util.getIntegerToken(data, S_DELIM, no + 6);
+			pet.item[i].target = util.getIntegerToken(data, S_DELIM, no + 7);
+			if (pet.item[i].target >= 100)
 			{
-				pet[nPetIndex].item[i].target %= 100;
-				pet[nPetIndex].item[i].deadTargetFlag = 1;
+				pet.item[i].target %= 100;
+				pet.item[i].deadTargetFlag = 1;
 			}
 			else
-				pet[nPetIndex].item[i].deadTargetFlag = 0;
-			pet[nPetIndex].item[i].level = getIntegerToken(data, '|', no + 8);
-			pet[nPetIndex].item[i].sendFlag = getIntegerToken(data, '|', no + 9);
+				pet.item[i].deadTargetFlag = 0;
+			pet.item[i].level = util.getIntegerToken(data, S_DELIM, no + 8);
+			pet.item[i].sendFlag = util.getIntegerToken(data, S_DELIM, no + 9);
 
 			// 顯示物品耐久度
-			getStringToken(data, '|', no + 10, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			if (strlen(szData) <= 16)
-				pet[nPetIndex].item[i].damage = toUnicode(szData);
-			pet[nPetIndex].item[i].pile = getIntegerToken(data, '|', no + 11);
+			util.getStringToken(data, S_DELIM, no + 10, szData);
+			util.makeStringFromEscaped(szData);
+			pet.item[i].damage = szData;
+			pet.item[i].pile = util.getIntegerToken(data, S_DELIM, no + 11);
 #ifdef _ALCHEMIST //_ITEMSET7_TXT
-			getStringToken(data, '|', no + 12, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			pet[nPetIndex].item[i].alch = toUnicode(szData);
+			util.getStringToken(data, S_DELIM, no + 12, szData);
+			util.makeStringFromEscaped(szData);
+			pet.item[i].alch = szData;
 #endif
-			pet[nPetIndex].item[i].type = getIntegerToken(data, '|', no + 13);
+			pet.item[i].type = util.getIntegerToken(data, S_DELIM, no + 13);
 #ifdef _ITEM_JIGSAW
-			getStringToken(data, '|', no + 14, sizeof(szData) - 1, szData);
-			makeStringFromEscaped(szData);
-			pet[nPetIndex].item[i].jigsaw = toUnicode(szData);
+			util.getStringToken(data, S_DELIM, no + 14, szData);
+			util.makeStringFromEscaped(szData);
+			pet.item[i].jigsaw = szData;
 			//可拿給寵物裝備的道具,就不會是拼圖了,以下就免了
 			//if( i == JigsawIdx )
 			//	SetJigsaw( pc->item[i].graNo, pc->item[i].jigsaw );
 #endif
 #ifdef _NPC_ITEMUP
-			pet[nPetIndex].item[i].itemup = getIntegerToken(data, '|', no + 15);
+			pet.item[i].itemup = util.getIntegerToken(data, S_DELIM, no + 15);
 #endif
 #ifdef _ITEM_COUNTDOWN
-			pet[nPetIndex].item[i].counttime = getIntegerToken(data, '|', no + 16);
+			pet.item[i].counttime = util.getIntegerToken(data, '|', no + 16);
 #endif
 		}
+		SetPet(nPetIndex, pet);
 	}
 	break;
 #endif
 	}
-	SetCharData(*pc);
-	SetParties(party);
-	SetPets(pet);
-	SetExp(exp);
 }
 
 /*===========================
+* 周圍單位資料
 1 OBJTYPE_CHARA
 2 OBJTYPE_ITEM
 3 OBJTYPE_GOLD
@@ -2886,10 +2653,11 @@ void GameService::lssproto_S_recv(int fd, char* data)
 ===========================*/
 void GameService::lssproto_C_recv(int fd, char* data)
 {
+	Util util;
 	MAP_UNIT unit = { 0 };
 	//int i, j;
 	//char bigtoken[2048], smalltoken[2048] = {}, name[2048], freeName[2048], info[1024], fmname[2048], petname[1024];
-	char smalltoken[2048] = {};
+
 #ifdef _CHARTITLE_STR_
 	char titlestr[128];
 	int titleindex = 0;
@@ -2922,10 +2690,9 @@ void GameService::lssproto_C_recv(int fd, char* data)
 		{
 		case 30://NPC
 		{
-			//1|13|59D|17|13|4|16054|1|0|萨姆吉尔的肉店||1|1|0|||0<-16 # 17->|0|0|0|0|0|0|0|0|0|0|25923|0|0,
+			//1|13|59D|17|13|4|16054|1|0|薩姆吉爾的肉店||1|1|0|||0<-16 # 17->|0|0|0|0|0|0|0|0|0|0|25923|0|0,
 			unit.charType = objinfos.at(1).toInt();
-			_snprintf_s(smalltoken, sizeof(smalltoken), "%s", objinfos.at(2).toStdString().c_str());
-			unit.id = a62toi(smalltoken);
+			unit.id = util.a62toi(objinfos.at(2));
 			unit.x = objinfos.at(3).toInt();
 			unit.y = objinfos.at(4).toInt();
 			unit.dir = objinfos.at(5).toInt();
@@ -2948,9 +2715,9 @@ void GameService::lssproto_C_recv(int fd, char* data)
 		//HUMAN
 		//1|1|8if|17|15|0|100008|14|0|QPointer||1|1|0|||0|0|0|0|0|0|0|0|0|0|0|65|0|0
 		//PET
-		//1|3|8jo|16|16|5|100296|1|0|凯比||1|1|0|||0|0|0|0|0|0|0|0|0|0|0|3968|0|0
+		//1|3|8jo|16|16|5|100296|1|0|凱比||1|1|0|||0|0|0|0|0|0|0|0|0|0|0|3968|0|0
 		//ITEM
-		//2|8jp|16|16|24008|0|小块肉
+		//2|8jp|16|16|24008|0|小塊肉
 		}
 
 
@@ -2959,18 +2726,18 @@ void GameService::lssproto_C_recv(int fd, char* data)
 	for (i = 0; ; i++)
 	{
 
-		getStringToken(data, ',', i + 1, sizeof(bigtoken) - 1, bigtoken);
+		util.getStringToken(data, ',', i + 1, sizeof(bigtoken) - 1, bigtoken);
 		if (strlen(bigtoken) == 0)
 			break;
 #ifdef _OBJSEND_C
-		getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
+		util.getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
 		if (strlen(smalltoken) == 0)
 			return;
 		switch (atoi(smalltoken))
 		{
 		case 1://OBJTYPE_CHARA
-			charType = getIntegerToken(bigtoken, '|', 2);
-			getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+			charType = util.getIntegerToken(bigtoken, '|', 2);
+			util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 			id = a62toi(smalltoken);
 
 			extern BOOL 人物屏蔽開關;
@@ -2981,39 +2748,39 @@ void GameService::lssproto_C_recv(int fd, char* data)
 				}
 			}
 
-			getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 			x = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
 			y = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
 			dir = (atoi(smalltoken) + 3) % 8;
-			getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
 			graNo = atoi(smalltoken);
 			if (graNo == 9999) continue;
-			getStringToken(bigtoken, '|', 8, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 8, sizeof(smalltoken) - 1, smalltoken);
 			level = atoi(smalltoken);
-			nameColor = getIntegerToken(bigtoken, '|', 9);
-			getStringToken(bigtoken, '|', 10, sizeof(name) - 1, name);
-			makeStringFromEscaped(name);
-			getStringToken(bigtoken, '|', 11, sizeof(freeName) - 1, freeName);
-			makeStringFromEscaped(freeName);
-			getStringToken(bigtoken, '|', 12, sizeof(smalltoken) - 1, smalltoken);
+			nameColor = util.getIntegerToken(bigtoken, '|', 9);
+			util.getStringToken(bigtoken, '|', 10, sizeof(name) - 1, name);
+			util.makeStringFromEscaped(name);
+			util.getStringToken(bigtoken, '|', 11, sizeof(freeName) - 1, freeName);
+			util.makeStringFromEscaped(freeName);
+			util.getStringToken(bigtoken, '|', 12, sizeof(smalltoken) - 1, smalltoken);
 			walkable = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 13, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 13, sizeof(smalltoken) - 1, smalltoken);
 			height = atoi(smalltoken);
-			charNameColor = getIntegerToken(bigtoken, '|', 14);
-			getStringToken(bigtoken, '|', 15, sizeof(fmname) - 1, fmname);
-			makeStringFromEscaped(fmname);
-			getStringToken(bigtoken, '|', 16, sizeof(petname) - 1, petname);
-			makeStringFromEscaped(petname);
-			getStringToken(bigtoken, '|', 17, sizeof(smalltoken) - 1, smalltoken);
+			charNameColor = util.getIntegerToken(bigtoken, '|', 14);
+			util.getStringToken(bigtoken, '|', 15, sizeof(fmname) - 1, fmname);
+			util.makeStringFromEscaped(fmname);
+			util.getStringToken(bigtoken, '|', 16, sizeof(petname) - 1, petname);
+			util.makeStringFromEscaped(petname);
+			util.getStringToken(bigtoken, '|', 17, sizeof(smalltoken) - 1, smalltoken);
 			petlevel = atoi(smalltoken);
 #ifdef _NPC_EVENT_NOTICE
-			getStringToken(bigtoken, '|', 18, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 18, sizeof(smalltoken) - 1, smalltoken);
 			noticeNo = atoi(smalltoken);
 #endif
 #ifdef _CHARTITLE_STR_
-			getStringToken(bigtoken, '|', 23, sizeof(titlestr) - 1, titlestr);
+			util.getStringToken(bigtoken, '|', 23, sizeof(titlestr) - 1, titlestr);
 			titleindex = atoi(titlestr);
 			memset(titlestr, 0, 128);
 			if (titleindex > 0) {
@@ -3022,25 +2789,25 @@ void GameService::lssproto_C_recv(int fd, char* data)
 			}
 #endif
 #ifdef _CHAR_PROFESSION			// WON ADD 人物職業
-			getStringToken(bigtoken, '|', 18, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 18, sizeof(smalltoken) - 1, smalltoken);
 			profession_class = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 19, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 19, sizeof(smalltoken) - 1, smalltoken);
 			profession_level = atoi(smalltoken);
-			//			getStringToken(bigtoken, '|', 20, sizeof(smalltoken) - 1, smalltoken);
+			//			util.getStringToken(bigtoken, '|', 20, sizeof(smalltoken) - 1, smalltoken);
 			//			profession_exp = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 20, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 20, sizeof(smalltoken) - 1, smalltoken);
 			profession_skill_point = atoi(smalltoken);
 #ifdef _ALLDOMAN // Syu ADD 排行榜NPC
-			getStringToken(bigtoken, '|', 21, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 21, sizeof(smalltoken) - 1, smalltoken);
 			herofloor = atoi(smalltoken);
 #endif
 #ifdef _NPC_PICTURE
-			getStringToken(bigtoken, '|', 22, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 22, sizeof(smalltoken) - 1, smalltoken);
 			picture = atoi(smalltoken);
 #endif
 			//    #ifdef _GM_IDENTIFY		// Rog ADD GM識別
-			//			getStringToken(bigtoken , '|', 23 , sizeof( gm_name ) - 1, gm_name );
-			//			makeStringFromEscaped( gm_name );
+			//			util.getStringToken(bigtoken , '|', 23 , sizeof( gm_name ) - 1, gm_name );
+			//			util.makeStringFromEscaped( gm_name );
 			//  #endif
 #endif
 			if (charNameColor < 0)
@@ -3154,27 +2921,27 @@ void GameService::lssproto_C_recv(int fd, char* data)
 			}
 			break;
 		case 2://OBJTYPE_ITEM
-			getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 			id = a62toi(smalltoken);
-			getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 			x = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 			y = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
 			graNo = atoi(smalltoken);
-			classNo = getIntegerToken(bigtoken, '|', 6);
-			getStringToken(bigtoken, '|', 7, sizeof(info) - 1, info);
-			makeStringFromEscaped(info);
+			classNo = util.getIntegerToken(bigtoken, '|', 6);
+			util.getStringToken(bigtoken, '|', 7, sizeof(info) - 1, info);
+			util.makeStringFromEscaped(info);
 			setItemCharObj(id, graNo, x, y, 0, classNo, info);
 			break;
 		case 3://OBJTYPE_GOLD
-			getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 			id = a62toi(smalltoken);
-			getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 			x = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 			y = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
 			money = atoi(smalltoken);
 			sprintf_s(info, "%d Stone", money);
 			if (money > 10000)
@@ -3185,17 +2952,17 @@ void GameService::lssproto_C_recv(int fd, char* data)
 				setMoneyCharObj(id, 24052, x, y, 0, money, info);
 			break;
 		case 4:
-			getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 			id = a62toi(smalltoken);
-			getStringToken(bigtoken, '|', 3, sizeof(name) - 1, name);
-			makeStringFromEscaped(name);
-			getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 3, sizeof(name) - 1, name);
+			util.makeStringFromEscaped(name);
+			util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 			dir = (atoi(smalltoken) + 3) % 8;
-			getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
 			graNo = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
 			x = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
 			y = atoi(smalltoken);
 
 #ifdef _CHAR_PROFESSION			// WON ADD 人物職業
@@ -3228,41 +2995,41 @@ void GameService::lssproto_C_recv(int fd, char* data)
 			break;
 		}
 #else
-		getStringToken(bigtoken, '|', 11, sizeof(smalltoken) - 1, smalltoken);
+		util.getStringToken(bigtoken, '|', 11, sizeof(smalltoken) - 1, smalltoken);
 		if (strlen(smalltoken) > 0) {
 			// NPC?
-			unit.charType = getIntegerToken(bigtoken, '|', 1);
-			getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+			unit.charType = util.getIntegerToken(bigtoken, '|', 1);
+			util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 			unit.id = a62toi(smalltoken);
-			getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 			unit.x = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 			unit.y = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 5, sizeof(smalltoken) - 1, smalltoken);
 			unit.dir = (atoi(smalltoken) + 3) % 8;
-			getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
 			unit.graNo = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 7, sizeof(smalltoken) - 1, smalltoken);
 			unit.level = atoi(smalltoken);
-			unit.nameColor = getIntegerToken(bigtoken, '|', 8);
-			getStringToken(bigtoken, '|', 9, sizeof(name) - 1, name);
-			makeStringFromEscaped(name);
+			unit.nameColor = util.getIntegerToken(bigtoken, '|', 8);
+			util.getStringToken(bigtoken, '|', 9, sizeof(name) - 1, name);
+			util.makeStringFromEscaped(name);
 			unit.name = toUnicode(name);
-			getStringToken(bigtoken, '|', 10, sizeof(freeName) - 1, freeName);
-			makeStringFromEscaped(freeName);
+			util.getStringToken(bigtoken, '|', 10, sizeof(freeName) - 1, freeName);
+			util.makeStringFromEscaped(freeName);
 			unit.freeName = toUnicode(freeName);
-			getStringToken(bigtoken, '|', 11, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 11, sizeof(smalltoken) - 1, smalltoken);
 			unit.walkable = atoi(smalltoken);
-			getStringToken(bigtoken, '|', 12, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 12, sizeof(smalltoken) - 1, smalltoken);
 			unit.height = atoi(smalltoken);
-			unit.charNameColor = getIntegerToken(bigtoken, '|', 13);
-			getStringToken(bigtoken, '|', 14, sizeof(fmname) - 1, fmname);
-			makeStringFromEscaped(fmname);
+			unit.charNameColor = util.getIntegerToken(bigtoken, '|', 13);
+			util.getStringToken(bigtoken, '|', 14, sizeof(fmname) - 1, fmname);
+			util.makeStringFromEscaped(fmname);
 
-			getStringToken(bigtoken, '|', 15, sizeof(petname) - 1, petname);
-			makeStringFromEscaped(petname);
+			util.getStringToken(bigtoken, '|', 15, sizeof(petname) - 1, petname);
+			util.makeStringFromEscaped(petname);
 
-			getStringToken(bigtoken, '|', 16, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 16, sizeof(smalltoken) - 1, smalltoken);
 			unit.petlevel = atoi(smalltoken);
 			if (unit.charNameColor < 0)
 				unit.charNameColor = 0;
@@ -3270,32 +3037,32 @@ void GameService::lssproto_C_recv(int fd, char* data)
 		}
 		else
 		{
-			getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
+			util.getStringToken(bigtoken, '|', 6, sizeof(smalltoken) - 1, smalltoken);
 			if (strlen(smalltoken) > 0) {
-				getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
+				util.getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
 				unit.id = a62toi(smalltoken);
-				getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+				util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 				unit.x = atoi(smalltoken);
-				getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+				util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 				unit.y = atoi(smalltoken);
-				getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+				util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 				unit.graNo = atoi(smalltoken);
-				unit.classNo = getIntegerToken(bigtoken, '|', 5);
-				getStringToken(bigtoken, '|', 6, sizeof(info) - 1, info);
-				makeStringFromEscaped(info);
+				unit.classNo = util.getIntegerToken(bigtoken, '|', 5);
+				util.getStringToken(bigtoken, '|', 6, sizeof(info) - 1, info);
+				util.makeStringFromEscaped(info);
 				unit.info = toUnicode(info);
 			}
 			else
 			{
-				getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+				util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 				if (strlen(smalltoken) > 0) {
-					getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
+					util.getStringToken(bigtoken, '|', 1, sizeof(smalltoken) - 1, smalltoken);
 					unit.id = a62toi(smalltoken);
-					getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
+					util.getStringToken(bigtoken, '|', 2, sizeof(smalltoken) - 1, smalltoken);
 					unit.x = atoi(smalltoken);
-					getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
+					util.getStringToken(bigtoken, '|', 3, sizeof(smalltoken) - 1, smalltoken);
 					unit.y = atoi(smalltoken);
-					getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
+					util.getStringToken(bigtoken, '|', 4, sizeof(smalltoken) - 1, smalltoken);
 					unit.money = atoi(smalltoken);
 					sprintf_s(info, "%d Stone", unit.money);
 					unit.info = toUnicode(info);
@@ -3310,6 +3077,7 @@ void GameService::lssproto_C_recv(int fd, char* data)
 #pragma endregion
 
 #pragma region SEND
+//心跳包
 void GameService::lssproto_Echo_send(int fd, char* test)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
@@ -3317,11 +3085,12 @@ void GameService::lssproto_Echo_send(int fd, char* test)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkstring(buffer.get(), test);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_ECHO_SEND, buffer.get());
+	iChecksum += autil->util_mkstring(buffer.get(), MAX_SMALLBUFF, test, 4u);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_ECHO_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
+//重定位
 void GameService::lssproto_EO_send(int fd, int dummy)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
@@ -3329,12 +3098,12 @@ void GameService::lssproto_EO_send(int fd, int dummy)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), dummy);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_EO_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, dummy);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_EO_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
-
+//戰鬥動作
 void GameService::lssproto_B_send(int fd, std::string command)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
@@ -3344,11 +3113,12 @@ void GameService::lssproto_B_send(int fd, std::string command)
 	buffer[0] = '\0';
 	char buf[20] = {};
 	_snprintf_s(buf, sizeof(buf), _TRUNCATE, "%s", command.c_str());
-	iChecksum += autil->util_mkstring(buffer.get(), buf);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_B_SEND, buffer.get());
+	iChecksum += autil->util_mkstring(buffer.get(), MAX_SMALLBUFF, buf, sizeof(buf));
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_B_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
+//送信
 void GameService::lssproto_MSG_send(int fd, int index, const QString& message, int color)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
@@ -3360,13 +3130,14 @@ void GameService::lssproto_MSG_send(int fd, int index, const QString& message, i
 	_snprintf_s(buf, sizeof(buf), _TRUNCATE, "%s", smsg.c_str());
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), index);
-	iChecksum += autil->util_mkstring(buffer.get(), buf);
-	iChecksum += autil->util_mkint(buffer.get(), color);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_MSG_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, index);
+	iChecksum += autil->util_mkstring(buffer.get(), MAX_SMALLBUFF, buf, sizeof(buf));
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, color);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_MSG_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
+//發話
 void GameService::lssproto_TK_send(int fd, const QString& message, int color, int area)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
@@ -3389,28 +3160,21 @@ void GameService::lssproto_TK_send(int fd, const QString& message, int color, in
 
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkstring(buffer.get(), buf);
-	iChecksum += autil->util_mkint(buffer.get(), color);
-	iChecksum += autil->util_mkint(buffer.get(), area);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_TK_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkstring(buffer.get(), MAX_SMALLBUFF, buf, sizeof(buf));
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, color);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, area);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_TK_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
-typedef struct
-{
-	int x;
-	int y;
-	char direction[2];
-} WALKARRAY;
-
-//计算从起始点到目的地的走路坐标和方向，返回所有步数
+//計算從起始點到目的地的走路坐標和方向，返回所有步數
 int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 {
-	//x1,y1起始坐标，x2,y2目标坐标,xf,yf走路方向
+	//x1,y1起始坐標，x2,y2目標坐標,xf,yf走路方向
 	int i, x, y, x1, y1, x2, y2, xf, yf, dx, dy;
-	//用于记录是否已向离目的地较远的方向移动一步
+	//用於記錄是否已向離目的地較遠的方向移動一步
 	bool flag;
 	WALKARRAY walkpos[100] = {};
 	if (xstart == xend && ystart == yend)
@@ -3419,10 +3183,10 @@ int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 	y1 = ystart;
 	x2 = xend;
 	y2 = yend;
-	//记录当前起始位置
+	//記錄當前起始位置
 	x = x1;
 	y = y1;
-	//确定走路方向
+	//確定走路方向
 	i = 0;
 	if (x1 <= x2)
 		xf = 1;
@@ -3432,41 +3196,41 @@ int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 		yf = 1;
 	else
 		yf = -1;
-	//用于控制走路方式，为假沿x轴或y轴走，为真则沿x,y轴各步一步
+	//用於控制走路方式，為假沿x軸或y軸走，為真則沿x,y軸各步一步
 	flag = false;
 	do {
-		//当前位置与目的地的距离x轴和y轴各有多远
+		//當前位置與目的地的距離x軸和y軸各有多遠
 		dx = qAbs(x2 - x);
 		dy = qAbs(y2 - y);
-		if (dx > 0 && dy == 0) {//只沿x轴方向走路
+		if (dx > 0 && dy == 0) {//只沿x軸方向走路
 			if (x != x2)x += xf;
 		}
-		else if (dy > 0 && dx == 0) {//只沿y轴方向走路
+		else if (dy > 0 && dx == 0) {//只沿y軸方向走路
 			if (y != y2)y += yf;
 		}
-		else {//沿xy轴方向同时走路
-			//“之”字型走路，若沿x轴走一步，则下一步沿x,y轴各步一步
-			if (dx > dy && flag == false) {//沿x轴走一步
+		else {//沿xy軸方向同時走路
+			//“之”字型走路，若沿x軸走一步，則下一步沿x,y軸各步一步
+			if (dx > dy && flag == false) {//沿x軸走一步
 				if (x != x2)x += xf;
 				flag = true;
 			}
-			else if (dx < dy && flag == false) {//沿y轴走一步
+			else if (dx < dy && flag == false) {//沿y軸走一步
 				if (y != y2)y += yf;
 				flag = true;
 			}
-			else {//沿x,y轴各走一步
+			else {//沿x,y軸各走一步
 				if (x != x2)x += xf;
 				if (y != y2)y += yf;
 				flag = false;
 			}
 		}
-		//记下向前走一步后的新坐标
+		//記下向前走一步後的新坐標
 		walkpos[i].x = x;
 		walkpos[i].y = y;
-		//求新坐标与上一个坐标间的距离
+		//求新坐標與上一個坐標間的距離
 		dx = walkpos[i].x - x1;
 		dy = walkpos[i].y - y1;
-		//根据两点间的距离来确定走路的方向
+		//根據兩點間的距離來確定走路的方向
 		if (dx == -1 && dy == 0) {//g
 			strcpy_s(walkpos[i].direction, "g");
 		}
@@ -3493,7 +3257,7 @@ int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 		}
 		else
 			return 0;
-		//把新坐标做为下一次走路的起始位置
+		//把新坐標做為下一次走路的起始位置
 		x1 = walkpos[i].x;
 		y1 = walkpos[i].y;
 		i++;
@@ -3507,7 +3271,7 @@ int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 		walk[j].x = x1;
 		walk[j].y = y1;
 		strcpy_s(walk[j].direction, walkpos[2 * j].direction);
-		strcat(walk[j].direction, walkpos[2 * j + 1].direction);
+		strncat_s(walk[j].direction, sizeof(walk[j].direction), walkpos[2 * j + 1].direction, sizeof(walkpos[2 * j + 1].direction));
 		j++;
 		x1 = walkpos[2 * j - 1].x;
 		y1 = walkpos[2 * j - 1].y;
@@ -3527,8 +3291,7 @@ int CalcWalkPos(WALKARRAY* walk, int xstart, int ystart, int xend, int yend)
 	return n;
 }
 
-
-//计算人物走路后当前所处的位置
+//計算人物走路後當前所處的位置
 void CalcCharPosition(WALKARRAY* walk)
 {
 	STATICINS(GameService);
@@ -3571,7 +3334,6 @@ void CalcCharPosition(WALKARRAY* walk)
 	//*g_GameService.g_player_ypos2 = y;
 
 }
-
 
 bool GameService::WalkPos(const QPoint& p)
 {
@@ -3619,12 +3381,12 @@ void GameService::lssproto_MU_send(int fd, int array, int toindex)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), array);
-	iChecksum += autil->util_mkint(buffer.get(), toindex);//0代表人，1-5代表宠物
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_MU_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, array);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, toindex);//0代表人，1-5代表寵物
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_MU_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //使用物品
@@ -3635,12 +3397,12 @@ void GameService::lssproto_ID_send(int fd, int haveitemindex, int toindex)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), haveitemindex);
-	iChecksum += autil->util_mkint(buffer.get(), toindex);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_ID_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, haveitemindex);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, toindex);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_ID_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //0斷線1回點
@@ -3651,9 +3413,9 @@ void GameService::lssproto_CharLogout_send(int fd, int Flg)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), Flg);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_CHARLOGOUT_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, Flg);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_CHARLOGOUT_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //菜單
@@ -3664,9 +3426,9 @@ void GameService::lssproto_FS_send(int fd, int flg)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), flg);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_FS_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, flg);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_FS_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //物品移動
@@ -3677,10 +3439,10 @@ void GameService::lssproto_MI_send(int fd, int fromindex, int toindex)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), fromindex);
-	iChecksum += autil->util_mkint(buffer.get(), toindex);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_MI_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, fromindex);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, toindex);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_MI_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //菜單
@@ -3692,12 +3454,11 @@ void GameService::lssproto_SaMenu_send(int fd, int index)
 
 	buffer[0] = '\0';
 
-	iChecksum += autil->util_mkint(buffer.get(), index);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_SAMENU_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, index);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_SAMENU_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
-//多功能面板
 //賣物(243) 格式[位置|數量] 10\z1 
 bool GameService::ITEM_SellItem(const QString& sznpcname, const QString& szitem)
 {
@@ -3748,22 +3509,22 @@ bool GameService::ITEM_SellItem(const QString& sznpcname, const QString& szitem)
 	return true;
 }
 
-
-void GameService::lssproto_WN_send(int fd, int seqno, int objindex, int select, char* data)
+//多功能面板
+void GameService::lssproto_WN_send(int fd, int seqno, int objindex, int select, const std::string& data)
 {
 	QScopedPointer<Autil> autil(q_check_ptr(new Autil()));
 	QScopedArrayPointer <char> buffer(new char[MAX_SMALLBUFF]());
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), seqno);//dialg id base + 29C36E18
-	iChecksum += autil->util_mkint(buffer.get(), objindex); //npcid base + 29C36E1C
-	iChecksum += autil->util_mkint(buffer.get(), select);//button
-	iChecksum += autil->util_mkstring(buffer.get(), data);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_WN_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, seqno);//dialg id base + 29C36E18
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, objindex); //npcid base + 29C36E1C
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, select);//button
+	iChecksum += autil->util_mkstring(buffer.get(), MAX_SMALLBUFF, data.c_str(), data.length());
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_WN_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //丟棄物品
@@ -3774,11 +3535,11 @@ void GameService::lssproto_DI_send(int fd, int itemindex)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), itemindex);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_DI_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, itemindex);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_DI_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //組隊
@@ -3801,11 +3562,11 @@ void GameService::lssproto_JOINTEAM_send(int fd)
 	}
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), ecx);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_JOINTEAM_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, ecx);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_JOINTEAM_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 void GameService::lssproto_L_send(int fd, int dir)
@@ -3815,9 +3576,9 @@ void GameService::lssproto_L_send(int fd, int dir)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), dir);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_L_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, dir);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_L_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 
 //0退隊
@@ -3828,11 +3589,11 @@ void GameService::lssproto_PR_send(int fd, int request)
 	int iChecksum = 0;
 
 	buffer[0] = '\0';
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_xpos);
-	iChecksum += autil->util_mkint(buffer.get(), *g_player_ypos);
-	iChecksum += autil->util_mkint(buffer.get(), request);
-	autil->util_mkint(buffer.get(), iChecksum);
-	autil->util_SendMesg(fd, LSSPROTO_PR_SEND, buffer.get());
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_xpos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, *g_player_ypos);
+	iChecksum += autil->util_mkint(buffer.get(), MAX_SMALLBUFF, request);
+	autil->util_mkint(buffer.get(), MAX_SMALLBUFF, iChecksum);
+	autil->util_SendMesg(fd, LSSPROTO_PR_SEND, buffer.get(), MAX_SMALLBUFF);
 }
 #pragma endregion
 

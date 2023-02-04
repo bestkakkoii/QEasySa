@@ -13,7 +13,7 @@ constexpr auto MAX_SKILL = 7;
 constexpr auto MAX_PET_ITEM = 7;
 constexpr int BATTLE_MAX_UNIT_PER_ROW = 5;
 constexpr int BATTLE_MAX_ROW = 4;
-constexpr auto S_DELIM = '|';
+constexpr auto S_DELIM = "|";
 
 constexpr auto CHAR_NAME_LEN = 16;
 constexpr auto CHAR_FREENAME_LEN = 32;
@@ -28,13 +28,6 @@ constexpr auto CHAR_FMNAME_LEN = 33;      // 家族名稱
 constexpr auto SKILL_NAME_LEN = 24;
 constexpr auto SKILL_MEMO_LEN = 72;
 
-constexpr auto NIGHT_TO_MORNING = 700;
-constexpr auto MORNING_TO_NOON = 930;
-constexpr auto NOON_TO_EVENING = 200;
-constexpr auto EVENING_TO_NIGHT = 300;
-constexpr auto LSTIME_SECONDS_PER_DAY = 5400;
-constexpr auto LSTIME_HOURS_PER_DAY = 1024;
-constexpr auto LSTIME_DAYS_PER_YEAR = 100;
 
 #define _PETS_SELECTCON
 #define _SHOW_FUSION
@@ -79,14 +72,6 @@ enum BUTTON_TYPE
 	BUTTON_CLOSE = 9,  //關閉
 	BUTTON_PREVIOUS = 16,  //上一頁
 	BUTTON_NEXT = 32,
-};
-
-enum LSTIME_SECTION
-{
-	LS_NOON,
-	LS_EVENING,
-	LS_NIGHT,
-	LS_MORNING,
 };
 
 enum BATTLE_DIALOG_TYPE
@@ -157,6 +142,13 @@ enum CustomMessages
 
 #pragma pack(4)
 
+typedef struct tagWALKARRAY
+{
+	int x = 0;
+	int y = 0;
+	char direction[2] = {};
+} WALKARRAY;
+
 typedef struct tagEXP
 {
 	int total = 0;
@@ -171,12 +163,6 @@ typedef struct tagMap
 	int floor = 0;
 	QString name = "\0";
 }Map;
-
-typedef struct tagEscapeChar
-{
-	char escapechar = '\0';
-	char escapedchar = '\0';
-} EscapeChar;
 
 typedef struct qbattle_object_s
 {
@@ -681,13 +667,6 @@ typedef struct tagMAGIC
 	QString memo = "\0";
 } MAGIC;
 
-typedef struct tagLSTIME
-{
-	int year = 0;
-	int day = 0;
-	int hour = 0;
-}LSTIME;
-
 typedef struct tagMAP_UNIT
 {
 	int charType = 0;
@@ -713,12 +692,5 @@ typedef struct tagMAP_UNIT
 
 #pragma pack()
 
-static EscapeChar escapeChar[] =
-{
-	{ '\n', 'n' },
-	{ ',', 'c' },
-	{ '|', 'z' },
-	{ '\\', 'y' },
-};
 
 #endif

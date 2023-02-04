@@ -7,10 +7,14 @@
 constexpr auto SLICE_MAX = 20;
 constexpr auto SLICE_SIZE = 65500;
 constexpr auto NETBUFSIZ = 1024 * 64;
+constexpr auto MAX_LBUFFER = 65500;
 constexpr auto MAX_BUFFER = 32768;
 constexpr auto MAX_SMALLBUFF = 16384;
+constexpr auto MAX_TINYBUFF = 8192;
+constexpr auto MAX_STINYBUFF = 4096;
 
 constexpr auto DEFAULTTABLE = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz{}";
+constexpr auto DEFAULTTABLESIZE = 64;
 constexpr auto DEFAULTFUNCBEGIN = "&";
 constexpr auto DEFAULTFUNCEND = "#";
 constexpr auto SEPARATOR = ";";
@@ -21,22 +25,28 @@ class KeyManager
 
 public:
 	virtual ~KeyManager() { m_key.clear(); }
-	void __vectorcall SetKey(const std::string& key)
+	void SetKey(const std::string& key)
 	{
 		EncryptKey(key);
 	}
-	std::string __vectorcall GetKey() const
+	std::string GetKey() const
 	{
 		return DecryptKey();
 	}
-	bool __vectorcall isValid() const
+	bool isValid() const
 	{
 		return !m_key.empty();
 	}
 
-	bool __vectorcall isValid(const std::string& key) const
+	bool isValid(const std::string& key) const
 	{
 		return !key.empty();
+	}
+
+	size_t size() const
+	{
+		std::string key = DecryptKey();
+		return key.length();
 	}
 
 
@@ -44,7 +54,7 @@ private:
 	KeyManager() = default;
 
 	//key加密
-	void __vectorcall EncryptKey(const std::string& key)
+	void EncryptKey(const std::string& key)
 	{
 		std::string encryptedKey = key;
 		for (size_t i = 0; i < key.length(); i++)
@@ -60,7 +70,7 @@ private:
 		}
 	}
 	//key解密
-	std::string __vectorcall DecryptKey() const
+	std::string DecryptKey() const
 	{
 		std::string decryptedKey = m_key;
 		for (size_t i = 0; i < decryptedKey.length(); i++)
@@ -79,54 +89,52 @@ class Autil
 {
 	DISABLE_COPY_MOVE(Autil);
 public:
-	char MesgSlice[sizeof(char*) * SLICE_MAX][SLICE_SIZE];
-	int SliceCount;
-public:
 	Autil();
 	virtual ~Autil();
-	char* __vectorcall index(const char* table, char src);
-	void __vectorcall util_Init(void);
-	void __vectorcall util_Release(void);
-	void __vectorcall util_SplitMessage(char* source, const char* separator);
-	void __vectorcall util_EncodeMessage(char* dst, char* src);
-	void __vectorcall util_DecodeMessage(char* dst, char* src);
-	int __vectorcall util_GetFunctionFromSlice(int* func, int* fieldcount);
-	void __vectorcall util_DiscardMessage(void);
-	void __vectorcall util_SendMesg(int fd, int func, char* buffer);
+	void util_SplitMessage(char* source, size_t buflen, const char* separator, size_t separatorlen);
+	int util_GetFunctionFromSlice(int* func, int* fieldcount);
+	void util_SendMesg(int fd, int func, char* buffer, size_t buflen);
+	void util_DecodeMessage(char* dst, size_t dstlen, const char* src, size_t srclen);
+	void util_DiscardMessage(void);
 
-	// -------------------------------------------------------------------
-	// Encoding function units.  Use in Encrypting functions.
-	int __vectorcall util_256to64(char* dst, char* src, int len, const char* table);
-	int __vectorcall util_64to256(char* dst, char* src, const char* table);
-	int __vectorcall util_256to64_shr(char* dst, char* src, int len, const char* table, const char* key);
-	int __vectorcall util_shl_64to256(char* dst, const char* src, const char* table, const char* key);
-	int __vectorcall util_256to64_shl(char* dst, char* src, int len, const char* table, const char* key);
-	int __vectorcall util_shr_64to256(char* dst, const char* src, const char* table, const char* key);
-
-	void __vectorcall util_swapint(int* dst, int* src, const char* rule);
-	void __vectorcall util_xorstring(char* dst, char* src);
-	void __vectorcall util_shrstring(char* dst, char* src, int offs);
-	void __vectorcall util_shlstring(char* dst, char* src, int offs);
 	// -------------------------------------------------------------------
 	// Encrypting functions
-	int __vectorcall util_deint(int sliceno, int* value);
-	int __vectorcall util_mkint(char* buffer, int value);
-	int __vectorcall util_destring(int sliceno, char* value);
-	int __vectorcall util_mkstring(char* buffer, char* value);
+	int util_deint(int sliceno, int* value);
+	int util_mkint(char* buffer, size_t buflen, int value);
+	int util_destring(int sliceno, char* value, size_t valuelen);
+	int util_mkstring(char* buffer, size_t buflen, const char* value, size_t valuelen);
 
-	int __vectorcall strcmptail(char* s1, char* s2);
+	//bool getStringFromIndexWithDelim_body(char* src, char* delim, int index, char* buf, int buflen);
+	int getLineFromReadBuf(char* output, size_t outputlen, int maxlen);
 
-	BOOL __vectorcall getStringFromIndexWithDelim_body(char* src, char* delim, int index, char* buf, int buflen);
-	int __vectorcall getLineFromReadBuf(char* output, int maxlen);
-
-	mutable QReadWriteLock m_slicelock;
-	mutable QReadWriteLock m_lock;
 public:
 	QScopedArrayPointer<char> g_net_readbuf;
 	int g_net_readbuflen = 0u;
 
 private:
+	char MesgSlice[sizeof(char*) * SLICE_MAX][SLICE_SIZE] = {};
+	int SliceCount;
+
+private:
 	int shiftReadBuf(int size);
+	void util_Init(void);
+	void util_EncodeMessage(char* dst, size_t dstlen, char* src, size_t srclen);
+	void util_Release(void);
+	//int strcmptail(char* s1, char* s2);
+
+	// -------------------------------------------------------------------
+	// Encoding function units.  Use in Encrypting functions.
+	int util_256to64(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen);
+	int util_64to256(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen);
+	int util_256to64_shr(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen, const char* key, size_t keylen);
+	int util_shl_64to256(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen, const char* key, size_t keylen);
+	int util_256to64_shl(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen, const char* key, size_t keylen);
+	int util_shr_64to256(char* dst, size_t dstlen, const char* src, size_t srclen, const char* table, size_t tablelen, const char* key, size_t keylen);
+
+	void util_swapint(int* dst, size_t dstlen, int* src, size_t srclen, const char* rule, size_t rulelen);
+	void util_xorstring(char* dst, size_t dstlen, const char* src, size_t srclen);
+	void util_shrstring(char* dst, size_t dstlen, const char* src, size_t srclen, int offs);
+	void util_shlstring(char* dst, size_t dstlen, const char* src, size_t srclen, int offs);
 };
 
 #endif

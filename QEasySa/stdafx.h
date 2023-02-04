@@ -286,54 +286,7 @@ static std::string __stdcall fromUnicode(const QString& str)
 	return codec->fromUnicode(str).data();
 }
 
-static QString __stdcall Tokenize(QString& data, QString del, Qt::CaseSensitivity s = Qt::CaseSensitive)
-{
-	int pos = data.indexOf(del, 0, s);
-	if (pos != -1)
-	{
-		QString retstring = data.mid(0, pos);
-		data = data.mid(pos + del.size());
-		return retstring;
-	}
-	else
-	{
-		QString retstring = data;
-		data.clear();
-		return retstring;
-	}
-}
 
-//返回從nstart開始到token在source中出現位置之間的字符串
-static void __stdcall Tokenize(char* source, char* dest, const char* token, int& nstart)
-{
-	char* p, * p1 = NULL;
-	//要查找字符串的長度
-	int len = strlen(token);
-	//總字符串長度
-	int totallen = strlen(source);
-	//如果起始查找位置大於等於原始字符串長度，則返回
-	if (nstart >= totallen) {
-		dest[0] = 0;
-		return;
-	}
-	//定義開始查找的位置
-	p = source + nstart;
-	//找出token在字符串的位置
-	p1 = strstr(p, token);
-	//如果找到
-	if (p1) {
-		//下一個啟始位置
-		nstart = nstart + (p1 - p) + len;
-		//覆制子符串到dest中
-		strncpy(dest, p, p1 - p);
-		dest[p1 - p] = 0;
-		return;
-	}
-	//覆制最後一部分
-	strncpy(dest, p, strlen(p));
-	dest[strlen(p)] = 0;
-	nstart += strlen(p);
-}
 
 //根據 QVector<int> 返回最小值索引
 Q_REQUIRED_RESULT inline static int lowestIndex(const QVector<int>& v)
@@ -524,7 +477,7 @@ static bool __stdcall GetUniqueId(QString& cpuid)
 	CoUninitialize();
 	cpuid = QString::fromStdWString(result).simplified();
 	return true;
-}
+	}
 
 
 
