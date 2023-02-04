@@ -124,7 +124,6 @@ void GameService::SetUserAccountData(QString list, int n)
 	}
 }
 
-
 void GameService::initialize()
 {
 	if (m_initialized)

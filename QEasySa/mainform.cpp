@@ -834,7 +834,7 @@ void MainForm::OnBattleTimer()
 	if (total_online_time > 0)
 	{
 		//每小時平均;
-		avgExp = exp.total * 3600.0 / total_online_time;
+		avgExp = ((float)exp.total * 3600.0) / ((float)total_online_time / 1000);
 
 		//計算預計升級
 		int leftexp = exp.left;

